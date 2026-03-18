@@ -159,9 +159,7 @@ p{color:var(--muted);line-height:1.7;font-size:1.02rem}.section-sub{max-width:82
   background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:16px;
 }
 .metric-card h3{margin:0 0 8px}
-.pagination{
-  display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;align-items:center
-}
+.pagination{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;align-items:center}
 .page-link{
   padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.05);
   border:1px solid rgba(255,255,255,.08);color:var(--text);font-weight:700
@@ -170,40 +168,27 @@ p{color:var(--muted);line-height:1.7;font-size:1.02rem}.section-sub{max-width:82
   width:100%;max-width:420px;padding:14px 16px;border-radius:14px;
   border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);color:var(--text);outline:none;
 }
-.asset-row{
-  display:flex;align-items:center;gap:10px;
-}
+.asset-row{display:flex;align-items:center;gap:10px;}
 .asset-logo{
   width:24px;height:24px;border-radius:50%;object-fit:cover;
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.08);
-  flex-shrink:0;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);flex-shrink:0;
 }
 .asset-icon{
   width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
   font-size:1rem;flex-shrink:0;
 }
-.asset-feature{
-  display:flex;align-items:center;gap:12px;
-}
+.asset-feature{display:flex;align-items:center;gap:12px;}
 .asset-feature-logo{
   width:32px;height:32px;border-radius:50%;object-fit:cover;
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
 }
 .asset-feature-icon{
   width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
   font-size:1.25rem;
 }
-.asset-subtitle{
-  color:var(--muted);font-size:.92rem;margin-top:4px;
-}
-.featured-shell{
-  display:flex;flex-direction:column;gap:10px;
-}
-.live-stamp{
-  color:var(--muted);font-size:.88rem;margin-top:10px
-}
+.asset-subtitle{color:var(--muted);font-size:.92rem;margin-top:4px;}
+.featured-shell{display:flex;flex-direction:column;gap:10px;}
+.live-stamp{color:var(--muted);font-size:.88rem;margin-top:10px}
 ul{color:var(--muted)}
 @media (max-width: 900px){
   .hero,.detail-grid,.mini-grid{grid-template-columns:1fr}
@@ -212,105 +197,29 @@ ul{color:var(--muted)}
 }
 """
 
-
 CRYPTO_TOP_90 = [
-    ("BTC", "Bitcoin"),
-    ("ETH", "Ethereum"),
-    ("BNB", "BNB"),
-    ("SOL", "Solana"),
-    ("XRP", "XRP"),
-    ("DOGE", "Dogecoin"),
-    ("ADA", "Cardano"),
-    ("AVAX", "Avalanche"),
-    ("LINK", "Chainlink"),
-    ("DOT", "Polkadot"),
-    ("MATIC", "Polygon"),
-    ("LTC", "Litecoin"),
-    ("BCH", "Bitcoin Cash"),
-    ("ATOM", "Cosmos"),
-    ("UNI", "Uniswap"),
-    ("NEAR", "NEAR Protocol"),
-    ("APT", "Aptos"),
-    ("ARB", "Arbitrum"),
-    ("OP", "Optimism"),
-    ("SUI", "Sui"),
-    ("PEPE", "Pepe"),
-    ("SHIB", "Shiba Inu"),
-    ("TRX", "TRON"),
-    ("ETC", "Ethereum Classic"),
-    ("XLM", "Stellar"),
-    ("HBAR", "Hedera"),
-    ("ICP", "Internet Computer"),
-    ("FIL", "Filecoin"),
-    ("INJ", "Injective"),
-    ("RNDR", "Render"),
-    ("TAO", "Bittensor"),
-    ("IMX", "Immutable"),
-    ("SEI", "Sei"),
-    ("TIA", "Celestia"),
-    ("JUP", "Jupiter"),
-    ("PYTH", "Pyth Network"),
-    ("BONK", "Bonk"),
-    ("WIF", "dogwifhat"),
-    ("FET", "Fetch.ai"),
-    ("RUNE", "THORChain"),
-    ("AAVE", "Aave"),
-    ("MKR", "Maker"),
-    ("ALGO", "Algorand"),
-    ("VET", "VeChain"),
-    ("EGLD", "MultiversX"),
-    ("THETA", "Theta Network"),
-    ("SAND", "The Sandbox"),
-    ("MANA", "Decentraland"),
-    ("AXS", "Axie Infinity"),
-    ("GRT", "The Graph"),
-    ("FLOW", "Flow"),
-    ("KAS", "Kaspa"),
-    ("KAVA", "Kava"),
-    ("DYDX", "dYdX"),
-    ("WLD", "Worldcoin"),
-    ("ARKM", "Arkham"),
-    ("STRK", "Starknet"),
-    ("ENA", "Ethena"),
-    ("ONDO", "Ondo"),
-    ("JASMY", "JasmyCoin"),
-    ("LDO", "Lido DAO"),
-    ("CRV", "Curve DAO Token"),
-    ("SNX", "Synthetix"),
-    ("COMP", "Compound"),
-    ("1INCH", "1inch"),
-    ("BAT", "Basic Attention Token"),
-    ("ZEC", "Zcash"),
-    ("DASH", "Dash"),
-    ("CHZ", "Chiliz"),
-    ("ROSE", "Oasis"),
-    ("QTUM", "Qtum"),
-    ("IOTA", "IOTA"),
-    ("ZIL", "Zilliqa"),
-    ("KSM", "Kusama"),
-    ("GMT", "STEPN"),
-    ("BLUR", "Blur"),
-    ("ACE", "Fusionist"),
-    ("NEO", "NEO"),
-    ("CFX", "Conflux"),
-    ("FTM", "Fantom"),
-    ("GALA", "Gala"),
-    ("LRC", "Loopring"),
-    ("ENS", "Ethereum Name Service"),
-    ("SXP", "Solar"),
-    ("HOT", "Holo"),
-    ("ANKR", "Ankr"),
-    ("ICX", "ICON"),
-    ("SC", "Siacoin"),
-    ("CKB", "Nervos Network"),
-    ("MASK", "Mask Network"),
-    ("YFI", "yearn.finance"),
-    ("WOO", "WOO"),
-    ("SKL", "SKALE"),
+    ("BTC", "Bitcoin"), ("ETH", "Ethereum"), ("BNB", "BNB"), ("SOL", "Solana"), ("XRP", "XRP"),
+    ("DOGE", "Dogecoin"), ("ADA", "Cardano"), ("AVAX", "Avalanche"), ("LINK", "Chainlink"), ("DOT", "Polkadot"),
+    ("MATIC", "Polygon"), ("LTC", "Litecoin"), ("BCH", "Bitcoin Cash"), ("ATOM", "Cosmos"), ("UNI", "Uniswap"),
+    ("NEAR", "NEAR Protocol"), ("APT", "Aptos"), ("ARB", "Arbitrum"), ("OP", "Optimism"), ("SUI", "Sui"),
+    ("PEPE", "Pepe"), ("SHIB", "Shiba Inu"), ("TRX", "TRON"), ("ETC", "Ethereum Classic"), ("XLM", "Stellar"),
+    ("HBAR", "Hedera"), ("ICP", "Internet Computer"), ("FIL", "Filecoin"), ("INJ", "Injective"), ("RNDR", "Render"),
+    ("TAO", "Bittensor"), ("IMX", "Immutable"), ("SEI", "Sei"), ("TIA", "Celestia"), ("JUP", "Jupiter"),
+    ("PYTH", "Pyth Network"), ("BONK", "Bonk"), ("WIF", "dogwifhat"), ("FET", "Fetch.ai"), ("RUNE", "THORChain"),
+    ("AAVE", "Aave"), ("MKR", "Maker"), ("ALGO", "Algorand"), ("VET", "VeChain"), ("EGLD", "MultiversX"),
+    ("THETA", "Theta Network"), ("SAND", "The Sandbox"), ("MANA", "Decentraland"), ("AXS", "Axie Infinity"),
+    ("GRT", "The Graph"), ("FLOW", "Flow"), ("KAS", "Kaspa"), ("KAVA", "Kava"), ("DYDX", "dYdX"),
+    ("WLD", "Worldcoin"), ("ARKM", "Arkham"), ("STRK", "Starknet"), ("ENA", "Ethena"), ("ONDO", "Ondo"),
+    ("JASMY", "JasmyCoin"), ("LDO", "Lido DAO"), ("CRV", "Curve DAO Token"), ("SNX", "Synthetix"), ("COMP", "Compound"),
+    ("1INCH", "1inch"), ("BAT", "Basic Attention Token"), ("ZEC", "Zcash"), ("DASH", "Dash"), ("CHZ", "Chiliz"),
+    ("ROSE", "Oasis"), ("QTUM", "Qtum"), ("IOTA", "IOTA"), ("ZIL", "Zilliqa"), ("KSM", "Kusama"),
+    ("GMT", "STEPN"), ("BLUR", "Blur"), ("ACE", "Fusionist"), ("NEO", "NEO"), ("CFX", "Conflux"),
+    ("FTM", "Fantom"), ("GALA", "Gala"), ("LRC", "Loopring"), ("ENS", "Ethereum Name Service"), ("SXP", "Solar"),
+    ("HOT", "Holo"), ("ANKR", "Ankr"), ("ICX", "ICON"), ("SC", "Siacoin"), ("CKB", "Nervos Network"),
+    ("MASK", "Mask Network"), ("YFI", "yearn.finance"), ("WOO", "WOO"), ("SKL", "SKALE"),
 ]
 
 CRYPTO_NAME_MAP = {symbol: name for symbol, name in CRYPTO_TOP_90}
-CRYPTO_ALLOWED_SYMBOLS = set(CRYPTO_NAME_MAP.keys())
 
 STOCK_UNIVERSE = [
     ("AAPL", "Apple"), ("MSFT", "Microsoft"), ("NVDA", "NVIDIA"), ("AMZN", "Amazon"),
@@ -325,11 +234,8 @@ STOCK_UNIVERSE = [
     ("BABA", "Alibaba"), ("PDD", "PDD"), ("SHEL", "Shell"), ("BP", "BP"),
     ("SHOP", "Shopify"), ("MELI", "MercadoLibre"), ("IBM", "IBM"), ("INTC", "Intel"),
     ("QCOM", "Qualcomm"),
-    ("GC=F", "Gold Futures"),
-    ("SI=F", "Silver Futures"),
-    ("PL=F", "Platinum Futures"),
-    ("CL=F", "Oil Futures"),
-    ("SIG", "Diamonds Proxy"),
+    ("GC=F", "Gold Futures"), ("SI=F", "Silver Futures"), ("PL=F", "Platinum Futures"),
+    ("CL=F", "Oil Futures"), ("SIG", "Diamonds Proxy"),
 ]
 
 STOCK_NAME_MAP = {s: n for s, n in STOCK_UNIVERSE}
@@ -353,162 +259,47 @@ REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "12"))
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "").strip()
 TWELVEDATA_API_KEY = os.environ.get("TWELVEDATA_API_KEY", "").strip()
 
+CACHE = {
+    "crypto": {"data": [], "updated_at": 0},
+    "stocks": {"data": [], "updated_at": 0},
+}
+CRYPTO_CACHE_TTL = 300
+STOCK_CACHE_TTL = 600
+
 COINGECKO_IDS = {
-    "BTC": "bitcoin",
-    "ETH": "ethereum",
-    "BNB": "binancecoin",
-    "SOL": "solana",
-    "XRP": "ripple",
-    "DOGE": "dogecoin",
-    "ADA": "cardano",
-    "AVAX": "avalanche-2",
-    "LINK": "chainlink",
-    "DOT": "polkadot",
-    "MATIC": "matic-network",
-    "LTC": "litecoin",
-    "BCH": "bitcoin-cash",
-    "ATOM": "cosmos",
-    "UNI": "uniswap",
-    "NEAR": "near",
-    "APT": "aptos",
-    "ARB": "arbitrum",
-    "OP": "optimism",
-    "SUI": "sui",
-    "PEPE": "pepe",
-    "SHIB": "shiba-inu",
-    "TRX": "tron",
-    "ETC": "ethereum-classic",
-    "XLM": "stellar",
-    "HBAR": "hedera-hashgraph",
-    "ICP": "internet-computer",
-    "FIL": "filecoin",
-    "INJ": "injective-protocol",
-    "RNDR": "render-token",
-    "TAO": "bittensor",
-    "IMX": "immutable-x",
-    "SEI": "sei-network",
-    "TIA": "celestia",
-    "JUP": "jupiter-exchange-solana",
-    "PYTH": "pyth-network",
-    "BONK": "bonk",
-    "WIF": "dogwifcoin",
-    "FET": "fetch-ai",
-    "RUNE": "thorchain",
-    "AAVE": "aave",
-    "MKR": "maker",
-    "ALGO": "algorand",
-    "VET": "vechain",
-    "EGLD": "elrond-erd-2",
-    "THETA": "theta-token",
-    "SAND": "the-sandbox",
-    "MANA": "decentraland",
-    "AXS": "axie-infinity",
-    "GRT": "the-graph",
-    "FLOW": "flow",
-    "KAS": "kaspa",
-    "KAVA": "kava",
-    "DYDX": "dydx-chain",
-    "WLD": "worldcoin-wld",
-    "ARKM": "arkham",
-    "STRK": "starknet",
-    "ENA": "ethena",
-    "ONDO": "ondo-finance",
-    "JASMY": "jasmycoin",
-    "LDO": "lido-dao",
-    "CRV": "curve-dao-token",
-    "SNX": "havven",
-    "COMP": "compound-governance-token",
-    "1INCH": "1inch",
-    "BAT": "basic-attention-token",
-    "ZEC": "zcash",
-    "DASH": "dash",
-    "CHZ": "chiliz",
-    "ROSE": "oasis-network",
-    "QTUM": "qtum",
-    "IOTA": "iota",
-    "ZIL": "zilliqa",
-    "KSM": "kusama",
-    "GMT": "stepn",
-    "BLUR": "blur",
-    "ACE": "fusionist",
-    "NEO": "neo",
-    "CFX": "conflux-token",
-    "FTM": "fantom",
-    "GALA": "gala",
-    "LRC": "loopring",
-    "ENS": "ethereum-name-service",
-    "SXP": "solar",
-    "HOT": "holotoken",
-    "ANKR": "ankr",
-    "ICX": "icon",
-    "SC": "siacoin",
-    "CKB": "nervos-network",
-    "MASK": "mask-network",
-    "YFI": "yearn-finance",
-    "WOO": "woo-network",
-    "SKL": "skale",
+    "BTC": "bitcoin", "ETH": "ethereum", "BNB": "binancecoin", "SOL": "solana", "XRP": "ripple",
+    "DOGE": "dogecoin", "ADA": "cardano", "AVAX": "avalanche-2", "LINK": "chainlink", "DOT": "polkadot",
+    "MATIC": "matic-network", "LTC": "litecoin", "BCH": "bitcoin-cash", "ATOM": "cosmos", "UNI": "uniswap",
+    "NEAR": "near", "APT": "aptos", "ARB": "arbitrum", "OP": "optimism", "SUI": "sui",
+    "PEPE": "pepe", "SHIB": "shiba-inu", "TRX": "tron", "ETC": "ethereum-classic", "XLM": "stellar",
+    "HBAR": "hedera-hashgraph", "ICP": "internet-computer", "FIL": "filecoin", "INJ": "injective-protocol",
+    "RNDR": "render-token", "AAVE": "aave",
 }
 
 KRAKEN_PAIRS = {
-    "BTC": "XBTUSD",
-    "ETH": "ETHUSD",
-    "SOL": "SOLUSD",
-    "XRP": "XRPUSD",
-    "DOGE": "DOGEUSD",
-    "ADA": "ADAUSD",
-    "AVAX": "AVAXUSD",
-    "DOT": "DOTUSD",
-    "LINK": "LINKUSD",
-    "LTC": "LTCUSD",
-    "BCH": "BCHUSD",
-    "ATOM": "ATOMUSD",
-    "UNI": "UNIUSD",
-    "TRX": "TRXUSD",
-    "ETC": "ETCUSD",
-    "XLM": "XLMUSD",
-    "AAVE": "AAVEUSD",
-    "COMP": "COMPUSD",
-    "MKR": "MKRUSD",
-    "ZEC": "ZECUSD",
-    "DASH": "DASHUSD",
-    "KSM": "KSMUSD",
+    "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "XRP": "XRPUSD",
+    "DOGE": "DOGEUSD", "ADA": "ADAUSD", "AVAX": "AVAXUSD", "DOT": "DOTUSD",
+    "LINK": "LINKUSD", "LTC": "LTCUSD", "BCH": "BCHUSD", "ATOM": "ATOMUSD",
+    "UNI": "UNIUSD", "TRX": "TRXUSD", "ETC": "ETCUSD", "XLM": "XLMUSD",
 }
 
 KRAKEN_OHLC_MAP = {
-    "BTC": "XXBTZUSD",
-    "ETH": "XETHZUSD",
-    "SOL": "SOLUSD",
-    "XRP": "XXRPZUSD",
-    "DOGE": "XDGUSD",
-    "ADA": "ADAUSD",
-    "AVAX": "AVAXUSD",
-    "DOT": "DOTUSD",
-    "LINK": "LINKUSD",
-    "LTC": "XLTCZUSD",
-    "BCH": "BCHUSD",
-    "ATOM": "ATOMUSD",
-    "UNI": "UNIUSD",
-    "TRX": "TRXUSD",
-    "ETC": "XETCZUSD",
-    "XLM": "XXLMZUSD",
+    "BTC": "XXBTZUSD", "ETH": "XETHZUSD", "SOL": "SOLUSD", "XRP": "XXRPZUSD",
+    "DOGE": "XDGUSD", "ADA": "ADAUSD", "AVAX": "AVAXUSD", "DOT": "DOTUSD",
+    "LINK": "LINKUSD", "LTC": "XLTCZUSD", "BCH": "BCHUSD", "ATOM": "ATOMUSD",
+    "UNI": "UNIUSD", "TRX": "TRXUSD", "ETC": "XETCZUSD", "XLM": "XXLMZUSD",
 }
-
 
 def get_stock_logo(symbol):
     domain = STOCK_DOMAINS.get(symbol.upper())
-    if domain:
-        return f"https://logo.clearbit.com/{domain}"
-    return None
-
+    return f"https://logo.clearbit.com/{domain}" if domain else None
 
 def get_crypto_logo(symbol):
     return f"https://cryptoicons.org/api/icon/{symbol.lower()}/200"
 
-
 def get_asset_icon(symbol):
     mapping = {"GC=F": "🥇", "SI=F": "🥈", "PL=F": "🔘", "CL=F": "🛢️", "SIG": "💎"}
     return mapping.get(symbol.upper(), "📈")
-
 
 FALLBACK_STOCKS = [
     {"symbol": "AAPL", "name": "Apple", "price": 211.42, "change": 1.12, "dir": "up", "signal": "BUY", "logo": get_stock_logo("AAPL"), "icon": get_asset_icon("AAPL")},
@@ -669,8 +460,7 @@ class Database:
     def update_user(self, user_id, **kwargs):
         if not kwargs:
             return
-        fields = []
-        values = []
+        fields, values = [], []
         for k, v in kwargs.items():
             fields.append(f"{k} = ?")
             values.append(v)
@@ -699,8 +489,7 @@ class Database:
         c = self.conn()
         rows = c.execute("""
             SELECT id, email, tier, subscription_status, created_at
-            FROM users
-            ORDER BY id DESC
+            FROM users ORDER BY id DESC
         """).fetchall()
         c.close()
         return [dict(r) for r in rows]
@@ -729,8 +518,7 @@ class Database:
     def remove_watchlist(self, user_id, asset_type, symbol):
         c = self.conn()
         c.execute("""
-            DELETE FROM watchlists
-            WHERE user_id = ? AND asset_type = ? AND symbol = ?
+            DELETE FROM watchlists WHERE user_id = ? AND asset_type = ? AND symbol = ?
         """, (user_id, asset_type, symbol.upper()))
         c.commit()
         c.close()
@@ -738,9 +526,7 @@ class Database:
     def get_watchlist(self, user_id):
         c = self.conn()
         rows = c.execute("""
-            SELECT * FROM watchlists
-            WHERE user_id = ?
-            ORDER BY created_at DESC
+            SELECT * FROM watchlists WHERE user_id = ? ORDER BY created_at DESC
         """, (user_id,)).fetchall()
         c.close()
         return [dict(r) for r in rows]
@@ -750,8 +536,7 @@ class Database:
         row = c.execute("""
             SELECT * FROM signal_snapshots
             WHERE asset_type = ? AND symbol = ? AND timeframe = ? AND signal_type = ?
-            ORDER BY id DESC
-            LIMIT 1
+            ORDER BY id DESC LIMIT 1
         """, (asset_type, symbol.upper(), timeframe, signal_type)).fetchone()
         c.close()
         return dict(row) if row else None
@@ -997,45 +782,35 @@ def render_candles_from_ohlc(candles, height=140):
 
 
 def fetch_crypto_candles(symbol, interval="15m", limit=60):
-    interval_map = {
-        "15m": 15,
-        "1h": 60,
-        "4h": 240,
-    }
-
+    interval_map = {"15m": 15, "1h": 60, "4h": 240}
     pair = KRAKEN_OHLC_MAP.get(symbol.upper())
-    kraken_interval = interval_map.get(interval, 15)
-
     if not pair:
         return None
 
     try:
         r = requests.get(
             "https://api.kraken.com/0/public/OHLC",
-            params={"pair": pair, "interval": kraken_interval},
+            params={"pair": pair, "interval": interval_map.get(interval, 15)},
             timeout=REQUESTS_TIMEOUT
         )
         r.raise_for_status()
         payload = r.json()
-
         if payload.get("error"):
             raise Exception(str(payload["error"]))
 
         result = payload.get("result", {})
         rows = result.get(pair) or []
-
         candles = []
         for row in rows[-limit:]:
             candles.append({
                 "open": float(row[1]),
                 "high": float(row[2]),
                 "low": float(row[3]),
-                "close": float(row[4])
+                "close": float(row[4]),
             })
-
         return candles or None
     except Exception as e:
-        logger.warning(f"fetch_crypto_candles failed for {symbol} via Kraken: {e}")
+        logger.warning(f"fetch_crypto_candles failed for {symbol}: {e}")
         return None
 
 
@@ -1078,8 +853,7 @@ def fetch_stock_multi_timeframe(symbol):
 def compute_rsi(closes, period=14):
     if len(closes) < period + 1:
         return 50.0
-    gains = []
-    losses = []
+    gains, losses = [], []
     for i in range(-period, 0):
         diff = closes[i] - closes[i - 1]
         gains.append(max(diff, 0))
@@ -1219,7 +993,6 @@ def extract_market_features(candles):
         "breakout_up": breakout_up,
         "breakout_down": breakout_down,
     }
-
 
 def detect_market_regime(feats):
     if not feats:
@@ -1409,17 +1182,9 @@ def ava_hypothesis_engine(candles, timeframe="1h", signal_type="short_term"):
 
 def aggregate_multi_timeframe_brain(asset_type, symbol, tf_map):
     if asset_type == "crypto":
-        signal_map = {
-            "15m": ("short_term", 1.0),
-            "1h": ("intraday", 1.2),
-            "4h": ("swing", 1.5),
-        }
+        signal_map = {"15m": ("short_term", 1.0), "1h": ("intraday", 1.2), "4h": ("swing", 1.5)}
     else:
-        signal_map = {
-            "1d": ("short_term", 1.0),
-            "1wk": ("trend", 1.4),
-            "1mo": ("macro", 1.6),
-        }
+        signal_map = {"1d": ("short_term", 1.0), "1wk": ("trend", 1.4), "1mo": ("macro", 1.6)}
 
     per_tf = {}
     weighted_score = 0.0
@@ -1433,13 +1198,7 @@ def aggregate_multi_timeframe_brain(asset_type, symbol, tf_map):
         total_weight += weight
 
     avg_score = (weighted_score / total_weight) if total_weight else 0.0
-    if avg_score >= 4:
-        overall = "BUY"
-    elif avg_score <= -4:
-        overall = "SELL"
-    else:
-        overall = "HOLD"
-
+    overall = "BUY" if avg_score >= 4 else "SELL" if avg_score <= -4 else "HOLD"
     confidence = min(0.90, max(0.50, 0.54 + abs(avg_score) * 0.04))
     c_label = confidence_label(confidence)
 
@@ -1452,15 +1211,8 @@ def aggregate_multi_timeframe_brain(asset_type, symbol, tf_map):
     for tf, v in per_tf.items():
         explanations.append(f"{tf} / {v['signal_type']}: {v['signal']} ({v['trend_state']}, {v['regime']})")
 
-    if avg_score > 2:
-        trend_state = "Bullish"
-        forecast_trend = "Upward"
-    elif avg_score < -2:
-        trend_state = "Bearish"
-        forecast_trend = "Downward"
-    else:
-        trend_state = "Neutral"
-        forecast_trend = "Stable"
+    trend_state = "Bullish" if avg_score > 2 else "Bearish" if avg_score < -2 else "Neutral"
+    forecast_trend = "Upward" if avg_score > 2 else "Downward" if avg_score < -2 else "Stable"
 
     return {
         "signal": overall,
@@ -1485,6 +1237,7 @@ def compute_light_signal(change):
     if change <= -2.0:
         return "SELL"
     return "HOLD"
+
 
 def fetch_crypto_from_coingecko():
     priority_symbols = [
@@ -1549,44 +1302,30 @@ def fetch_crypto_from_coingecko():
 
 
 def fetch_crypto_from_kraken():
-    if not KRAKEN_PAIRS:
-        return []
-
-    reverse_pairs = {v: k for k, v in KRAKEN_PAIRS.items()}
-    pair_list = list(KRAKEN_PAIRS.values())
     results = []
-    chunk_size = 15
 
-    for i in range(0, len(pair_list), chunk_size):
-        chunk = pair_list[i:i + chunk_size]
-        r = requests.get(
-            "https://api.kraken.com/0/public/Ticker",
-            params={"pair": ",".join(chunk)},
-            timeout=REQUESTS_TIMEOUT
-        )
-        r.raise_for_status()
-        payload = r.json()
+    for symbol, pair_code in KRAKEN_PAIRS.items():
+        try:
+            r = requests.get(
+                "https://api.kraken.com/0/public/Ticker",
+                params={"pair": pair_code},
+                timeout=REQUESTS_TIMEOUT
+            )
+            r.raise_for_status()
+            payload = r.json()
 
-        if payload.get("error"):
-            raise Exception(str(payload["error"]))
-
-        raw = payload.get("result", {})
-        for result_key, value in raw.items():
-            symbol = None
-            for pair_code, sym in reverse_pairs.items():
-                if result_key == pair_code or pair_code in result_key:
-                    symbol = sym
-                    break
-
-            if not symbol:
+            if payload.get("error"):
+                logger.warning(f"Kraken pair failed for {symbol}: {payload['error']}")
                 continue
 
-            try:
-                price = float(value["c"][0])
-                open_price = float(value["o"])
-                change = pct_change(price, open_price)
-            except Exception:
+            raw = payload.get("result", {})
+            if not raw:
                 continue
+
+            value = list(raw.values())[0]
+            price = float(value["c"][0])
+            open_price = float(value["o"])
+            change = pct_change(price, open_price)
 
             if price <= 0:
                 continue
@@ -1601,20 +1340,27 @@ def fetch_crypto_from_kraken():
                 "logo": get_crypto_logo(symbol),
             })
 
-        time.sleep(0.08)
+            time.sleep(0.1)
 
-    deduped = {}
-    for item in results:
-        deduped[item["symbol"]] = item
+        except Exception as e:
+            logger.warning(f"Kraken fetch failed for {symbol}: {e}")
 
-    ordered = [deduped[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in deduped]
+    payload_map = {item["symbol"]: item for item in results}
+    ordered = [payload_map[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in payload_map]
     return ordered
 
 
-def fetch_crypto_quotes_safe():
+def fetch_crypto_quotes_safe(force_refresh=False):
+    now = time.time()
+    cache_entry = CACHE["crypto"]
+
+    if not force_refresh and cache_entry["data"] and (now - cache_entry["updated_at"] < CRYPTO_CACHE_TTL):
+        return cache_entry["data"]
+
     try:
         data = fetch_crypto_from_coingecko()
         if data:
+            CACHE["crypto"] = {"data": data, "updated_at": now}
             return data
     except Exception as e:
         logger.warning(f"fetch_crypto_quotes_safe CoinGecko failed: {e}")
@@ -1622,26 +1368,24 @@ def fetch_crypto_quotes_safe():
     try:
         data = fetch_crypto_from_kraken()
         if data:
+            CACHE["crypto"] = {"data": data, "updated_at": now}
             return data
     except Exception as e:
         logger.warning(f"fetch_crypto_quotes_safe Kraken failed: {e}")
 
-    logger.warning("fetch_crypto_quotes_safe failed: all crypto providers unavailable")
+    if cache_entry["data"]:
+        logger.warning("fetch_crypto_quotes_safe failed, returning stale crypto cache")
+        return cache_entry["data"]
+
     return []
 
 
 def normalize_stock_symbol_for_twelvedata(symbol):
-    mapping = {
-        "BRK-B": "BRK.B",
-    }
-    return mapping.get(symbol.upper(), symbol.upper())
+    return {"BRK-B": "BRK.B"}.get(symbol.upper(), symbol.upper())
 
 
 def normalize_stock_symbol_for_finnhub(symbol):
-    mapping = {
-        "BRK-B": "BRK.B",
-    }
-    return mapping.get(symbol.upper(), symbol.upper())
+    return {"BRK-B": "BRK.B"}.get(symbol.upper(), symbol.upper())
 
 
 def fetch_stock_quotes_from_twelvedata():
@@ -1649,19 +1393,14 @@ def fetch_stock_quotes_from_twelvedata():
         raise Exception("TWELVEDATA_API_KEY not set")
 
     results = []
-
-    for original_symbol, _name in STOCK_UNIVERSE:
+    for original_symbol, _ in STOCK_UNIVERSE:
         if "=" in original_symbol:
             continue
 
         api_symbol = normalize_stock_symbol_for_twelvedata(original_symbol)
-
         r = requests.get(
             "https://api.twelvedata.com/quote",
-            params={
-                "symbol": api_symbol,
-                "apikey": TWELVEDATA_API_KEY,
-            },
+            params={"symbol": api_symbol, "apikey": TWELVEDATA_API_KEY},
             timeout=REQUESTS_TIMEOUT
         )
         r.raise_for_status()
@@ -1673,10 +1412,7 @@ def fetch_stock_quotes_from_twelvedata():
         try:
             price = float(item.get("close") or 0)
             percent_change_raw = item.get("percent_change")
-            if percent_change_raw in [None, ""]:
-                change = 0.0
-            else:
-                change = float(str(percent_change_raw).replace("%", ""))
+            change = float(str(percent_change_raw).replace("%", "")) if percent_change_raw not in [None, ""] else 0.0
         except Exception:
             continue
 
@@ -1704,13 +1440,11 @@ def fetch_stock_quotes_from_finnhub():
         raise Exception("FINNHUB_API_KEY not set")
 
     payload = []
-
     for symbol, name in STOCK_UNIVERSE:
         if "=" in symbol:
             continue
 
         api_symbol = normalize_stock_symbol_for_finnhub(symbol)
-
         r = requests.get(
             "https://finnhub.io/api/v1/quote",
             params={"symbol": api_symbol, "token": FINNHUB_API_KEY},
@@ -1721,7 +1455,6 @@ def fetch_stock_quotes_from_finnhub():
 
         current_price = data.get("c")
         prev_close = data.get("pc")
-
         if current_price in [None, 0]:
             continue
 
@@ -1748,7 +1481,13 @@ def fetch_stock_quotes_from_finnhub():
     return payload
 
 
-def fetch_stock_quotes_safe():
+def fetch_stock_quotes_safe(force_refresh=False):
+    now = time.time()
+    cache_entry = CACHE["stocks"]
+
+    if not force_refresh and cache_entry["data"] and (now - cache_entry["updated_at"] < STOCK_CACHE_TTL):
+        return cache_entry["data"]
+
     try:
         payload = fetch_stock_quotes_from_twelvedata()
         if payload:
@@ -1756,6 +1495,7 @@ def fetch_stock_quotes_safe():
             for item in FALLBACK_STOCKS:
                 if item["symbol"] not in existing:
                     payload.append(dict(item))
+            CACHE["stocks"] = {"data": payload, "updated_at": now}
             return payload
     except Exception as e:
         logger.warning(f"fetch_stock_quotes_safe failed via Twelve Data: {e}")
@@ -1767,9 +1507,14 @@ def fetch_stock_quotes_safe():
             for item in FALLBACK_STOCKS:
                 if item["symbol"] not in existing:
                     payload.append(dict(item))
+            CACHE["stocks"] = {"data": payload, "updated_at": now}
             return payload
     except Exception as e:
         logger.warning(f"fetch_stock_quotes_safe failed via Finnhub: {e}")
+
+    if cache_entry["data"]:
+        logger.warning("fetch_stock_quotes_safe failed, returning stale stock cache")
+        return cache_entry["data"]
 
     return FALLBACK_STOCKS.copy()
 
@@ -1819,13 +1564,6 @@ def get_crypto_detail(symbol):
         "read": agg["regime"],
         "summary": f"Dominant factors: {', '.join(agg['dominant_factors'][:4])}."
     }
-
-    for tf, item in agg["timeframes"].items():
-        db.upsert_signal_snapshot_if_changed(
-            "crypto", symbol, tf, item["signal_type"], item["signal"],
-            item["confidence"], item["confidence_label"], item["regime"],
-            item["trend_state"], asset["price"], item["explanations"], item["dominant_factors"]
-        )
 
     asset.update({
         "price_display": fmt_price(asset["price"], asset["symbol"]),
@@ -1878,13 +1616,6 @@ def get_stock_detail(symbol):
         "summary": f"Dominant factors: {', '.join(agg['dominant_factors'][:4])}."
     }
 
-    for tf, item in agg["timeframes"].items():
-        db.upsert_signal_snapshot_if_changed(
-            "stock", symbol, tf, item["signal_type"], item["signal"],
-            item["confidence"], item["confidence_label"], item["regime"],
-            item["trend_state"], asset["price"], item["explanations"], item["dominant_factors"]
-        )
-
     asset.update({
         "price_display": fmt_price(asset["price"], asset["symbol"]),
         "change_display": fmt_change(asset["change"]),
@@ -1929,37 +1660,12 @@ def parse_sqlite_dt(v):
 
 
 def refresh_signal_outcomes():
-    rows = db.get_open_outcomes(limit=200)
-    now = datetime.now()
-    for row in rows:
-        created = parse_sqlite_dt(row["created_at"])
-        if not created:
-            continue
-        age_hours = (now - created).total_seconds() / 3600.0
-        price_now = get_latest_price(row["asset_type"], row["symbol"])
-        if not price_now:
-            continue
-
-        if age_hours >= 1:
-            ret, outcome = evaluate_signal_outcome(row["signal"], row["price_at_signal"], price_now)
-            if ret is not None:
-                db.insert_signal_outcome(row["id"], "1h", price_now, ret, outcome)
-
-        if age_hours >= 24:
-            ret, outcome = evaluate_signal_outcome(row["signal"], row["price_at_signal"], price_now)
-            if ret is not None:
-                db.insert_signal_outcome(row["id"], "24h", price_now, ret, outcome)
-
-        if age_hours >= 24 * 7:
-            ret, outcome = evaluate_signal_outcome(row["signal"], row["price_at_signal"], price_now)
-            if ret is not None:
-                db.insert_signal_outcome(row["id"], "7d", price_now, ret, outcome)
+    return
 
 
 def summarize_performance(rows):
     if not rows:
         return {"total": 0, "buy_accuracy": 0, "sell_accuracy": 0, "hold_accuracy": 0, "avg_return": 0, "best_assets": []}
-
     total = len(rows)
     buy = [r for r in rows if r["signal"] == "BUY"]
     sell = [r for r in rows if r["signal"] == "SELL"]
@@ -1971,7 +1677,6 @@ def summarize_performance(rows):
         return round(100 * sum(1 for x in items if x["outcome"] == "correct") / len(items), 1)
 
     avg_return = round(sum(float(r["return_pct"] or 0) for r in rows) / total, 2) if total else 0
-
     per_symbol = {}
     for r in rows:
         per_symbol.setdefault(r["symbol"], []).append(float(r["return_pct"] or 0))
@@ -2006,12 +1711,7 @@ def build_breadcrumbs(items):
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         "itemListElement": [
-            {
-                "@type": "ListItem",
-                "position": idx + 1,
-                "name": item["name"],
-                "item": item["url"]
-            }
+            {"@type": "ListItem", "position": idx + 1, "name": item["name"], "item": item["url"]}
             for idx, item in enumerate(items)
         ]
     }
@@ -2030,202 +1730,19 @@ def homepage_json_ld():
             "@context": "https://schema.org",
             "@type": "WebSite",
             "name": "AVA Markets",
-            "url": Config.DOMAIN,
-            "potentialAction": {
-                "@type": "SearchAction",
-                "target": f"{Config.DOMAIN}/crypto?q={{search_term_string}}",
-                "query-input": "required name=search_term_string"
-            }
+            "url": Config.DOMAIN
         }
     ]
 
-def faq_json_ld(items):
-    return {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-            {
-                "@type": "Question",
-                "name": q,
-                "acceptedAnswer": {
-                    "@type": "Answer",
-                    "text": a
-                }
-            }
-            for q, a in items
-        ]
-    }
-
-
-def asset_json_ld(asset_type, asset):
-    page_url = f"{Config.DOMAIN}/crypto/{asset['symbol']}" if asset_type == "crypto" else f"{Config.DOMAIN}/stocks/{asset['symbol']}"
-    return {
-        "@context": "https://schema.org",
-        "@type": "FinancialProduct",
-        "name": f"{asset['name']} ({asset['symbol']})",
-        "description": f"{asset['name']} market page with live price updates, signals, trends, and forecasts on AVA Markets.",
-        "url": page_url,
-        "category": "Cryptocurrency" if asset_type == "crypto" else "Stock / Commodity"
-    }
-
-
-def live_update_script(page_type=None, symbol=None, asset_type=None):
-    if page_type == "crypto_list":
-        return """
-<script>
-async function refreshCryptoList(){
-  try{
-    const res = await fetch('/api/live/crypto-list');
-    const data = await res.json();
-    const stamp = document.getElementById('live-updated-crypto');
-    if (stamp) stamp.textContent = 'Last updated: ' + data.updated_at + ' UTC';
-
-    data.items.forEach(item => {
-      const priceEl = document.getElementById('price-' + item.symbol);
-      const changeEl = document.getElementById('change-' + item.symbol);
-      const signalEl = document.getElementById('signal-' + item.symbol);
-
-      if (priceEl) priceEl.textContent = item.price_display;
-      if (changeEl) {
-        changeEl.textContent = item.change_display;
-        changeEl.className = item.dir === 'up' ? 'up' : 'down';
-      }
-      if (signalEl) {
-        signalEl.textContent = item.signal;
-        signalEl.className = 'signal ' + (item.signal === 'BUY' ? 'signal-buy' : item.signal === 'SELL' ? 'signal-sell' : 'signal-hold');
-      }
-    });
-  } catch(e){}
-}
-setInterval(refreshCryptoList, 15000);
-</script>
-        """
-
-    if page_type == "stock_list":
-        return """
-<script>
-async function refreshStockList(){
-  try{
-    const res = await fetch('/api/live/stocks-list');
-    const data = await res.json();
-    const stamp = document.getElementById('live-updated-stocks');
-    if (stamp) stamp.textContent = 'Last updated: ' + data.updated_at + ' UTC';
-
-    data.items.forEach(item => {
-      const safe = item.symbol.replace(/[^A-Za-z0-9]/g, '_');
-      const priceEl = document.getElementById('price-' + safe);
-      const changeEl = document.getElementById('change-' + safe);
-      const signalEl = document.getElementById('signal-' + safe);
-
-      if (priceEl) priceEl.textContent = item.price_display;
-      if (changeEl) {
-        changeEl.textContent = item.change_display;
-        changeEl.className = item.dir === 'up' ? 'up' : 'down';
-      }
-      if (signalEl) {
-        signalEl.textContent = item.signal;
-        signalEl.className = 'signal ' + (item.signal === 'BUY' ? 'signal-buy' : item.signal === 'SELL' ? 'signal-sell' : 'signal-hold');
-      }
-    });
-  } catch(e){}
-}
-setInterval(refreshStockList, 45000);
-</script>
-        """
-
-    if page_type == "detail":
-        endpoint = f"/api/live/{asset_type}/{symbol.upper()}"
-        interval = 15000 if asset_type == "crypto" else 45000
-        return f"""
-<script>
-async function refreshDetail(){{
-  try{{
-    const res = await fetch('{endpoint}');
-    const data = await res.json();
-    const priceEl = document.getElementById('detail-price');
-    const changeEl = document.getElementById('detail-change');
-    const signalEl = document.getElementById('detail-signal');
-    const confEl = document.getElementById('detail-confidence');
-    const stamp = document.getElementById('detail-updated');
-
-    if (priceEl) priceEl.textContent = data.price_display;
-    if (changeEl) {{
-      changeEl.textContent = data.change_display;
-      changeEl.className = data.dir === 'up' ? 'up' : 'down';
-    }}
-    if (signalEl) {{
-      signalEl.textContent = data.signal;
-      signalEl.className = 'signal ' + (data.signal === 'BUY' ? 'signal-buy' : data.signal === 'SELL' ? 'signal-sell' : 'signal-hold');
-    }}
-    if (confEl) confEl.textContent = 'Confidence: ' + data.confidence_text;
-    if (stamp) stamp.textContent = 'Last updated: ' + data.updated_at + ' UTC';
-  }} catch(e){{}}
-}}
-setInterval(refreshDetail, {interval});
-</script>
-        """
-    return ""
-
-
-def nav_layout(
-    title,
-    content,
-    extra_head="",
-    meta_description=None,
-    canonical_url=None,
-    og_type="website",
-    robots_content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
-    json_ld_override=None
-):
-    if not meta_description:
-        meta_description = "AVA Markets provides crypto, stock, and commodity market intelligence with live updates, multi-timeframe signals, trends, forecasts, and transparent performance tracking."
-
-    if not canonical_url:
-        canonical_url = f"{Config.DOMAIN}{request.path}"
-
-    default_json_ld = {
-        "@context": "https://schema.org",
-        "@type": "WebSite" if request.path == "/" else "WebPage",
-        "name": title,
-        "url": canonical_url,
-        "description": meta_description
-    }
-
-    json_ld_payload = json_ld_override if json_ld_override is not None else default_json_ld
-
+def nav_layout(title, content):
     return render_template_string("""
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta name="google-site-verification" content="39xa6RndNqbrq7XCh_9JZQkWBoRKAJlghz8ieHcV2v4" />
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>{{ title }}</title>
-  <meta name="description" content="{{ meta_description }}">
-  <meta name="robots" content="{{ robots_content }}">
-  <link rel="canonical" href="{{ canonical_url }}">
-
-  <meta property="og:title" content="{{ title }}">
-  <meta property="og:description" content="{{ meta_description }}">
-  <meta property="og:type" content="{{ og_type }}">
-  <meta property="og:url" content="{{ canonical_url }}">
-  <meta property="og:site_name" content="AVA Markets">
-
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="{{ title }}">
-  <meta name="twitter:description" content="{{ meta_description }}">
-
-  {% if json_ld_payload %}
-    {% if json_ld_payload is string %}
-      <script type="application/ld+json">{{ json_ld_payload|safe }}</script>
-    {% else %}
-      <script type="application/ld+json">{{ json_ld_payload|tojson|safe }}</script>
-    {% endif %}
-  {% endif %}
-
   <style>{{ css }}</style>
-  {{ extra_head|safe }}
 </head>
 <body>
   <div class="container">
@@ -2235,169 +1752,16 @@ def nav_layout(
         <a href="/">Home</a>
         <a href="/crypto">Crypto</a>
         <a href="/stocks">Stocks</a>
-        <a href="/forecast">Forecast</a>
-        <a href="/trends">Trends</a>
-        <a href="/performance">Performance</a>
-        <a href="/signal-changes">Signal Changes</a>
-        <a href="/pricing">Pricing</a>
-        {% if user %}
-          <a href="/dashboard">Dashboard</a>
-          <a href="/logout">Logout</a>
-        {% else %}
-          <a href="/login">Login</a>
-          <a href="/register">Register</a>
-        {% endif %}
-        <a href="/admin/login">Admin</a>
       </div>
     </nav>
 
     {{ content|safe }}
 
-    <div class="footer">AVA Markets © 2026 — crypto, stocks, premium signals, live updates, trends, and forecasts.</div>
+    <div class="footer">AVA Markets © 2026</div>
   </div>
 </body>
 </html>
-    """,
-    title=title,
-    content=content,
-    css=CSS,
-    user=g.get("user"),
-    extra_head=extra_head,
-    meta_description=meta_description,
-    canonical_url=canonical_url,
-    og_type=og_type,
-    robots_content=robots_content,
-    json_ld_payload=json_ld_payload)
-
-
-def get_web_user():
-    return db.get_user_by_session(request.cookies.get("session_token"))
-
-
-@app.before_request
-def load_user():
-    g.user = get_web_user()
-
-
-def require_login(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if not g.user:
-            return redirect("/login")
-        return fn(*args, **kwargs)
-    return wrapper
-
-
-def require_admin(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if request.cookies.get("admin_auth") != "1":
-            return redirect("/admin/login")
-        return fn(*args, **kwargs)
-    return wrapper
-
-
-def is_paid_active():
-    user = g.user or get_web_user()
-    return bool(user and user.get("subscription_status") in ["active", "trialing"])
-
-
-def current_tier():
-    user = g.user or get_web_user()
-    return user["tier"] if user else "free"
-
-
-def can_access_signals():
-    return is_paid_active() and current_tier() in ["basic", "pro", "elite", "enterprise"]
-
-
-def can_access_forecast():
-    return is_paid_active() and current_tier() in ["pro", "elite", "enterprise"]
-
-
-def can_access_trends():
-    return is_paid_active() and current_tier() in ["pro", "elite", "enterprise"]
-
-
-@app.route("/robots.txt")
-def robots_txt():
-    content = f"""User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /admin/login
-Disallow: /dashboard
-Disallow: /login
-Disallow: /register
-
-Sitemap: {Config.DOMAIN}/sitemap.xml
-"""
-    resp = make_response(content)
-    resp.headers["Content-Type"] = "text/plain; charset=utf-8"
-    return resp
-
-
-@app.route("/sitemap.xml")
-def sitemap_xml():
-    static_pages = [
-        "/",
-        "/crypto",
-        "/stocks",
-        "/forecast",
-        "/trends",
-        "/performance",
-        "/signal-changes",
-        "/pricing",
-        "/login",
-        "/register",
-    ]
-
-    crypto_assets = fetch_crypto_quotes_safe()[:50]
-    stock_assets = fetch_stock_quotes_safe()[:50]
-
-    urls = []
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    for path in static_pages:
-        urls.append({
-            "loc": f"{Config.DOMAIN}{path}",
-            "lastmod": now,
-            "changefreq": "daily" if path in ["/", "/crypto", "/stocks", "/performance"] else "weekly",
-            "priority": "1.0" if path == "/" else "0.8"
-        })
-
-    for a in crypto_assets:
-        urls.append({
-            "loc": f"{Config.DOMAIN}/crypto/{a['symbol']}",
-            "lastmod": now,
-            "changefreq": "hourly",
-            "priority": "0.7"
-        })
-
-    for a in stock_assets:
-        urls.append({
-            "loc": f"{Config.DOMAIN}/stocks/{a['symbol']}",
-            "lastmod": now,
-            "changefreq": "daily",
-            "priority": "0.7"
-        })
-
-    xml = ['<?xml version="1.0" encoding="UTF-8"?>']
-    xml.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
-
-    for u in urls:
-        xml.append(f"""
-  <url>
-    <loc>{u['loc']}</loc>
-    <lastmod>{u['lastmod']}</lastmod>
-    <changefreq>{u['changefreq']}</changefreq>
-    <priority>{u['priority']}</priority>
-  </url>
-        """)
-
-    xml.append("</urlset>")
-    resp = make_response("".join(xml))
-    resp.headers["Content-Type"] = "application/xml; charset=utf-8"
-    return resp
+    """, title=title, content=content, css=CSS)
 
 
 @app.route("/api/live/crypto-list")
@@ -2406,6 +1770,7 @@ def api_live_crypto_list():
     for a in fetch_crypto_quotes_safe():
         items.append({
             "symbol": a["symbol"],
+            "name": a["name"],
             "price_display": fmt_price(a["price"], a["symbol"]),
             "change_display": fmt_change(a["change"]),
             "dir": a["dir"],
@@ -2423,6 +1788,7 @@ def api_live_stocks_list():
     for a in fetch_stock_quotes_safe():
         items.append({
             "symbol": a["symbol"],
+            "name": a["name"],
             "price_display": fmt_price(a["price"], a["symbol"]),
             "change_display": fmt_change(a["change"]),
             "dir": a["dir"],
@@ -2441,11 +1807,11 @@ def api_live_crypto_detail(symbol):
         return jsonify({"error": "not_found"}), 404
     return jsonify({
         "symbol": asset["symbol"],
+        "name": asset["name"],
         "price_display": asset["price_display"],
         "change_display": asset["change_display"],
         "dir": asset["dir"],
         "signal": asset["signal"],
-        "confidence_text": f"{int(asset['signal_meta']['confidence'] * 100)}% — {asset['signal_meta']['confidence_label']}",
         "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     })
 
@@ -2457,11 +1823,11 @@ def api_live_stock_detail(symbol):
         return jsonify({"error": "not_found"}), 404
     return jsonify({
         "symbol": asset["symbol"],
+        "name": asset["name"],
         "price_display": asset["price_display"],
         "change_display": asset["change_display"],
         "dir": asset["dir"],
         "signal": asset["signal"],
-        "confidence_text": f"{int(asset['signal_meta']['confidence'] * 100)}% — {asset['signal_meta']['confidence_label']}",
         "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     })
 
@@ -2473,13 +1839,14 @@ def home():
 
     featured_crypto = dict(crypto_list[0]) if crypto_list else {
         "symbol": "N/A",
-        "name": "Crypto data unavailable",
+        "name": "Crypto unavailable",
         "price": 0.0,
         "change": 0.0,
         "dir": "down",
         "signal": "HOLD",
         "logo": None,
     }
+
     featured_stock = dict(stock_list[0]) if stock_list else {
         "symbol": "AAPL",
         "name": "Apple",
@@ -2496,30 +1863,23 @@ def home():
     featured_stock["price_display"] = fmt_price(featured_stock["price"], featured_stock["symbol"])
     featured_stock["change_display"] = fmt_change(featured_stock["change"])
 
-    crypto_candles = None
-    if featured_crypto["symbol"] != "N/A":
-        crypto_candles = fetch_crypto_candles(featured_crypto["symbol"], interval="15m", limit=40)
-
+    crypto_candles = fetch_crypto_candles(featured_crypto["symbol"], interval="15m", limit=40) if featured_crypto["symbol"] != "N/A" else None
     stock_candles = fetch_stock_candles(featured_stock["symbol"], period="3mo", interval="1d")
 
     content = render_template_string("""
     <section class="hero">
       <div class="hero-card">
-        <div class="badge">AVA Markets Core</div>
-        <h1>Live-feeling market intelligence for crypto, stocks, and commodities.</h1>
-        <p>
-          Browse market data for free, unlock multi-timeframe signals on Basic,
-          and access forecast + trend intelligence on Pro and above.
-        </p>
+        <div class="badge">AVA Markets</div>
+        <h1>Live crypto and stock market snapshots.</h1>
+        <p>Fast market views with cached data, simple signal previews, and detail pages.</p>
         <div class="btns">
-          <a class="btn btn-primary" href="/crypto">Explore Crypto</a>
-          <a class="btn btn-secondary" href="/stocks">Explore Stocks</a>
-          <a class="btn btn-secondary" href="/performance">See Track Record</a>
+          <a class="btn btn-primary" href="/crypto">Crypto</a>
+          <a class="btn btn-secondary" href="/stocks">Stocks</a>
         </div>
       </div>
 
       <div class="card featured-shell">
-        <div class="badge">Featured {{ featured_crypto.symbol }}</div>
+        <div class="badge">Featured Crypto</div>
         <div class="asset-feature">
           {% if featured_crypto.logo %}
             <img class="asset-feature-logo" src="{{ featured_crypto.logo }}" alt="{{ featured_crypto.symbol }}" onerror="this.style.display='none'">
@@ -2532,28 +1892,23 @@ def home():
                 {{ featured_crypto.name }}
               {% endif %}
             </h2>
-            <div class="asset-subtitle">Top crypto market snapshot</div>
           </div>
         </div>
-        <div style="font-size:2.4rem;font-weight:800;">{{ featured_crypto.price_display }}
-          <span class="{{ 'up' if featured_crypto.dir == 'up' else 'down' }}" style="font-size:1rem;">{{ featured_crypto.change_display }}</span>
+        <div style="font-size:2.2rem;font-weight:800;">
+          {{ featured_crypto.price_display }}
+          <span class="{{ 'up' if featured_crypto.dir == 'up' else 'down' }}" style="font-size:1rem;">
+            {{ featured_crypto.change_display }}
+          </span>
         </div>
-        <p>Free preview shows lightweight market sentiment. Premium pages unlock multi-timeframe signals.</p>
-        <div style="margin:16px 0 18px;">
-          {% if featured_crypto.symbol != "N/A" and signals %}
-            <span class="signal {{ 'signal-buy' if featured_crypto.signal == 'BUY' else 'signal-hold' if featured_crypto.signal == 'HOLD' else 'signal-sell' }}">{{ featured_crypto.signal }}</span>
-          {% elif featured_crypto.symbol != "N/A" %}
-            <span class="signal signal-locked">Signal Locked</span>
-          {% else %}
-            <span class="signal signal-locked">Unavailable</span>
-          {% endif %}
+        <div style="margin:10px 0;">
+          <span class="signal {{ 'signal-buy' if featured_crypto.signal == 'BUY' else 'signal-sell' if featured_crypto.signal == 'SELL' else 'signal-hold' }}">{{ featured_crypto.signal }}</span>
         </div>
         <div class="candle-box">{{ crypto_candles|safe }}</div>
       </div>
     </section>
 
     <section class="section">
-      <h2 class="section-title">Featured stock / commodity</h2>
+      <h2 class="section-title">Featured Stock</h2>
       <div class="card featured-shell">
         <div class="asset-feature">
           {% if featured_stock.logo %}
@@ -2563,7 +1918,6 @@ def home():
           {% endif %}
           <div>
             <h2 style="margin:0;"><a href="/stocks/{{ featured_stock.symbol }}">{{ featured_stock.symbol }}</a> — {{ featured_stock.name }}</h2>
-            <div class="asset-subtitle">Global stock / commodity snapshot</div>
           </div>
         </div>
         <p>{{ featured_stock.price_display }} <span class="{{ 'up' if featured_stock.dir == 'up' else 'down' }}">{{ featured_stock.change_display }}</span></p>
@@ -2574,75 +1928,10 @@ def home():
     featured_crypto=featured_crypto,
     featured_stock=featured_stock,
     crypto_candles=render_candles_from_ohlc(crypto_candles) if crypto_candles else fallback_candles_html(1),
-    stock_candles=render_candles_from_ohlc(stock_candles) if stock_candles else fallback_candles_html(2),
-    signals=can_access_signals())
+    stock_candles=render_candles_from_ohlc(stock_candles) if stock_candles else fallback_candles_html(2))
 
-    seo_block = """
-    <section class="section">
-      <div class="card">
-        <h2>Crypto signals, stock signals, and market trend analysis in one platform</h2>
-        <p>
-          AVA Markets helps users discover crypto signals, stock signals, commodity movement,
-          trend analysis, and forecast intelligence through a live-updating market dashboard.
-          Whether you are tracking Bitcoin, Ethereum, Apple, NVIDIA, gold, or oil, the platform
-          is designed to make technical market intelligence easier to understand.
-        </p>
-        <p>
-          Use AVA Markets to explore buy, hold, and sell signals, compare short-term and trend-based
-          views, inspect confidence labels, and review transparent signal performance across markets.
-        </p>
-      </div>
-    </section>
-    """
+    return nav_layout("AVA Markets", content)
 
-    popular_links = """
-    <section class="section">
-      <div class="card">
-        <h2>Popular market pages</h2>
-        <div class="btns">
-          <a class="btn btn-secondary" href="/crypto/BTC">Bitcoin (BTC)</a>
-          <a class="btn btn-secondary" href="/crypto/ETH">Ethereum (ETH)</a>
-          <a class="btn btn-secondary" href="/crypto/SOL">Solana (SOL)</a>
-          <a class="btn btn-secondary" href="/stocks/AAPL">Apple (AAPL)</a>
-          <a class="btn btn-secondary" href="/stocks/MSFT">Microsoft (MSFT)</a>
-          <a class="btn btn-secondary" href="/stocks/NVDA">NVIDIA (NVDA)</a>
-          <a class="btn btn-secondary" href="/stocks/GC=F">Gold</a>
-          <a class="btn btn-secondary" href="/stocks/CL=F">Oil</a>
-        </div>
-      </div>
-    </section>
-    """
-
-    what_is_block = """
-    <div class="card" style="margin-top:24px;">
-      <h2>What is AVA Markets?</h2>
-      <p>
-        AVA Markets is a market intelligence platform that helps users monitor crypto, stocks,
-        and commodities through live pricing, technical signals, trend analysis, and forecast views.
-        The platform is designed to make multi-timeframe market analysis easier to understand.
-      </p>
-    </div>
-    """
-
-    why_users_block = """
-    <div class="card" style="margin-top:24px;">
-      <h2>Why users search for AVA Markets</h2>
-      <p>
-        Traders and market watchers use AVA Markets to find crypto signals, stock signals,
-        market forecasts, buy-hold-sell views, trend analysis, and transparent performance data
-        without the clutter of traditional charting platforms.
-      </p>
-    </div>
-    """
-
-    full_content = content + seo_block + popular_links + what_is_block + why_users_block
-
-    return nav_layout(
-        "Crypto Signals, Stock Signals, Trends & Forecasts - AVA Markets",
-        full_content,
-        meta_description="AVA Markets is a live-updating crypto and stock signals platform with market forecasts, trend analysis, buy-hold-sell views, and transparent performance tracking.",
-        json_ld_override=homepage_json_ld()
-    )
 
 @app.route("/crypto")
 def crypto():
@@ -2657,16 +1946,11 @@ def crypto():
     if search:
         assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
 
-    if not assets:
-        assets = []
-
     page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_CRYPTO)
-    unlocked = can_access_signals()
 
     rows = ""
     for a in page_items:
         sig_class = {"BUY": "signal-buy", "HOLD": "signal-hold", "SELL": "signal-sell"}[a["signal"]]
-        signal_html = f'<span id="signal-{a["symbol"]}" class="signal {sig_class}">{a["signal"]}</span>' if unlocked else '<span class="signal signal-locked">Locked</span>'
         rows += f"""
         <tr>
           <td class="asset-name">
@@ -2676,10 +1960,9 @@ def crypto():
             </strong>
             <span>{a['name']}</span>
           </td>
-          <td id="price-{a['symbol']}">{a['price_display']}</td>
-          <td id="change-{a['symbol']}" class="{'up' if a['dir']=='up' else 'down'}">{a['change_display']}</td>
-          <td>{signal_html}</td>
-          <td>{"Unlocked" if unlocked else "Basic+"}</td>
+          <td>{a['price_display']}</td>
+          <td class="{'up' if a['dir']=='up' else 'down'}">{a['change_display']}</td>
+          <td><span class="signal {sig_class}">{a['signal']}</span></td>
         </tr>
         """
 
@@ -2693,27 +1976,16 @@ def crypto():
     content = f"""
     <section class="section">
       <h1>Crypto</h1>
-      <p class="section-sub">Top crypto assets with live-updating previews and premium multi-timeframe detail pages.</p>
-      <div id="live-updated-crypto" class="live-stamp">Last updated: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC</div>
-
-      <div class="card" style="margin-bottom:24px;">
-        <h2>Crypto market signals and trend analysis</h2>
-        <p>
-          Browse crypto market signals across major assets including Bitcoin, Ethereum, Solana,
-          BNB, XRP, and more. AVA Markets combines live price movement, signal previews,
-          multi-timeframe analysis, and forecast intelligence to help users understand
-          crypto market structure more clearly.
-        </p>
-      </div>
+      <p class="section-sub">Cached crypto market view.</p>
 
       <form method="GET" style="margin-bottom:20px;">
-        <input class="search-box" type="text" name="q" placeholder="Search crypto symbol or name..." value="{search}">
+        <input class="search-box" type="text" name="q" placeholder="Search crypto..." value="{search}">
       </form>
 
       <div class="table-shell">
         <table class="market-table">
-          <tr><th>Asset</th><th>Price</th><th>24h</th><th>Preview Signal</th><th>Access</th></tr>
-          {rows or "<tr><td colspan='5'>No crypto data available right now.</td></tr>"}
+          <tr><th>Asset</th><th>Price</th><th>24h</th><th>Signal</th></tr>
+          {rows or "<tr><td colspan='4'>No crypto data available right now.</td></tr>"}
         </table>
       </div>
 
@@ -2721,19 +1993,7 @@ def crypto():
       {legal_disclaimer_html()}
     </section>
     """
-
-    crypto_breadcrumbs = build_breadcrumbs([
-        {"name": "Home", "url": Config.DOMAIN + "/"},
-        {"name": "Crypto", "url": Config.DOMAIN + "/crypto"}
-    ])
-
-    return nav_layout(
-        "Crypto Market Signals - AVA Markets",
-        content,
-        extra_head=live_update_script("crypto_list"),
-        meta_description="Browse live-updating crypto markets on AVA Markets with price movement previews, premium multi-timeframe signals, and detailed asset intelligence.",
-        json_ld_override=crypto_breadcrumbs
-    )
+    return nav_layout("Crypto - AVA Markets", content)
 
 
 @app.route("/stocks")
@@ -2749,38 +2009,28 @@ def stocks():
     if search:
         assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
 
-    if not assets:
-        assets = [dict(x) for x in FALLBACK_STOCKS]
-        for a in assets:
-            a["price_display"] = fmt_price(a["price"], a["symbol"])
-            a["change_display"] = fmt_change(a["change"])
-
     page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_STOCKS)
-    unlocked = can_access_signals()
 
     rows = ""
     for a in page_items:
-        safe_id = a["symbol"].replace("=", "_").replace("-", "_")
-        media = (
+        safe_media = (
             f'<img class="asset-logo" src="{a.get("logo","")}" alt="{a["symbol"]}" onerror="this.style.display=\'none\'">'
             if a.get("logo") else
             f'<span class="asset-icon">{a.get("icon","📈")}</span>'
         )
         sig_class = {"BUY": "signal-buy", "HOLD": "signal-hold", "SELL": "signal-sell"}[a["signal"]]
-        signal_html = f'<span id="signal-{safe_id}" class="signal {sig_class}">{a["signal"]}</span>' if unlocked else '<span class="signal signal-locked">Locked</span>'
         rows += f"""
         <tr>
           <td class="asset-name">
             <strong class="asset-row">
-              {media}
+              {safe_media}
               <a href="/stocks/{a['symbol']}">{a['symbol']}</a>
             </strong>
             <span>{a['name']}</span>
           </td>
-          <td id="price-{safe_id}">{a['price_display']}</td>
-          <td id="change-{safe_id}" class="{'up' if a['dir']=='up' else 'down'}">{a['change_display']}</td>
-          <td>{signal_html}</td>
-          <td>{"Unlocked" if unlocked else "Basic+"}</td>
+          <td>{a['price_display']}</td>
+          <td class="{'up' if a['dir']=='up' else 'down'}">{a['change_display']}</td>
+          <td><span class="signal {sig_class}">{a['signal']}</span></td>
         </tr>
         """
 
@@ -2794,27 +2044,16 @@ def stocks():
     content = f"""
     <section class="section">
       <h1>Stocks + Commodities</h1>
-      <p class="section-sub">Global market list with live-updating previews and premium multi-timeframe detail analysis.</p>
-      <div id="live-updated-stocks" class="live-stamp">Last updated: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC</div>
-
-      <div class="card" style="margin-bottom:24px;">
-        <h2>Stock signals, commodity signals, and trend intelligence</h2>
-        <p>
-          Explore stock market signals and commodity trend analysis across major names such as
-          Apple, Microsoft, NVIDIA, Tesla, Amazon, and global assets like gold and oil.
-          AVA Markets helps users inspect live pricing, technical signal structure, trend regime,
-          and forecast views in one dashboard.
-        </p>
-      </div>
+      <p class="section-sub">Cached stock market view.</p>
 
       <form method="GET" style="margin-bottom:20px;">
-        <input class="search-box" type="text" name="q" placeholder="Search stock or commodity..." value="{search}">
+        <input class="search-box" type="text" name="q" placeholder="Search stock..." value="{search}">
       </form>
 
       <div class="table-shell">
         <table class="market-table">
-          <tr><th>Asset</th><th>Price</th><th>1D</th><th>Preview Signal</th><th>Access</th></tr>
-          {rows}
+          <tr><th>Asset</th><th>Price</th><th>1D</th><th>Signal</th></tr>
+          {rows or "<tr><td colspan='4'>No stock data available right now.</td></tr>"}
         </table>
       </div>
 
@@ -2822,19 +2061,7 @@ def stocks():
       {legal_disclaimer_html()}
     </section>
     """
-
-    stock_breadcrumbs = build_breadcrumbs([
-        {"name": "Home", "url": Config.DOMAIN + "/"},
-        {"name": "Stocks", "url": Config.DOMAIN + "/stocks"}
-    ])
-
-    return nav_layout(
-        "Stocks and Commodities Signals - AVA Markets",
-        content,
-        extra_head=live_update_script("stock_list"),
-        meta_description="Explore stocks and commodities on AVA Markets with live-updating prices, market previews, premium multi-timeframe signals, trend analysis, and forecasts.",
-        json_ld_override=stock_breadcrumbs
-    )
+    return nav_layout("Stocks - AVA Markets", content)
 
 
 @app.route("/crypto/<symbol>")
@@ -2843,17 +2070,7 @@ def crypto_detail(symbol):
     if not asset:
         abort(404)
 
-    unlocked_signals = can_access_signals()
-    unlocked_forecast = can_access_forecast()
-    unlocked_trends = can_access_trends()
-
-    in_watchlist = False
-    if g.user:
-        wl = db.get_watchlist(g.user["id"])
-        in_watchlist = any(x["asset_type"] == "crypto" and x["symbol"] == asset["symbol"] for x in wl)
-
     sig_class = {"BUY": "signal-buy", "HOLD": "signal-hold", "SELL": "signal-sell"}[asset["signal"]]
-    signal_html = f'<span id="detail-signal" class="signal {sig_class}">{asset["signal"]}</span>' if unlocked_signals else '<span class="signal signal-locked">Locked</span>'
 
     content = render_template_string("""
     <section class="section">
@@ -2863,127 +2080,53 @@ def crypto_detail(symbol):
         {% endif %}
         <div>
           <h1 style="margin:0;">{{ asset.symbol }} — {{ asset.name }}</h1>
-          <div class="asset-subtitle">Multi-timeframe crypto intelligence with short-term, intraday, and swing signals</div>
-          <div id="detail-updated" class="live-stamp">Last updated: {{ updated_at }} UTC</div>
         </div>
-      </div>
-
-      <div class="card" style="margin-bottom:24px;">
-        <p>
-          AVA Markets tracks {{ asset.name }} ({{ asset.symbol }}) with live price updates,
-          multi-timeframe crypto signals, trend regime analysis, and forecast intelligence.
-          Users can inspect short-term, intraday, and swing signal structure for clearer
-          technical market context.
-        </p>
-      </div>
-
-      <div class="btns" style="margin-bottom:18px;">
-        {% if user %}
-          {% if in_watchlist %}
-          <form method="POST" action="/watchlist/remove/crypto/{{ asset.symbol }}">
-            <button class="btn btn-secondary" type="submit">Remove from Watchlist</button>
-          </form>
-          {% else %}
-          <form method="POST" action="/watchlist/add/crypto/{{ asset.symbol }}">
-            <button class="btn btn-primary" type="submit">Add to Watchlist</button>
-          </form>
-          {% endif %}
-        {% endif %}
       </div>
 
       <div class="detail-grid">
         <div class="card">
           <div class="badge">Live Market</div>
-          <h2><span id="detail-price">{{ asset.price_display }}</span> <span id="detail-change" class="{{ 'up' if asset.dir == 'up' else 'down' }}">{{ asset.change_display }}</span></h2>
-          <div style="margin:12px 0 18px;">{{ signal_html|safe }}</div>
+          <h2>{{ asset.price_display }} <span class="{{ 'up' if asset.dir == 'up' else 'down' }}">{{ asset.change_display }}</span></h2>
+          <div style="margin:12px 0 18px;">
+            <span class="signal {{ sig_class }}">{{ asset.signal }}</span>
+          </div>
           <div class="candle-box">{{ asset.detail_candles|safe }}</div>
         </div>
 
         <div class="mini-grid">
           <div class="metric-card">
-            <h3>Overall Signal</h3>
-            <p>{% if unlocked_signals %}{{ asset.signal_meta.signal }}{% else %}Locked{% endif %}</p>
-            <p id="detail-confidence">Confidence: {% if unlocked_signals %}{{ (asset.signal_meta.confidence * 100)|round(0) }}% — {{ asset.signal_meta.confidence_label }}{% else %}Basic+{% endif %}</p>
+            <h3>Signal</h3>
+            <p>{{ asset.signal_meta.signal }}</p>
           </div>
           <div class="metric-card">
-            <h3>RSI</h3>
-            <p>{% if unlocked_signals %}{{ asset.signal_meta.rsi }}{% else %}Locked{% endif %}</p>
-            <p>Momentum: {% if unlocked_signals %}{{ asset.signal_meta.momentum }}%{% else %}Basic+{% endif %}</p>
+            <h3>Confidence</h3>
+            <p>{{ (asset.signal_meta.confidence * 100)|round(0) }}% — {{ asset.signal_meta.confidence_label }}</p>
           </div>
           <div class="metric-card">
             <h3>Trend</h3>
-            <p>{% if unlocked_trends %}{{ asset.trend_data.state }}{% else %}Locked{% endif %}</p>
-            <p>{% if unlocked_trends %}{{ asset.trend_data.strength }} strength{% else %}Pro+{% endif %}</p>
+            <p>{{ asset.trend_data.state }}</p>
           </div>
           <div class="metric-card">
             <h3>Forecast</h3>
-            <p>{% if unlocked_forecast %}{{ asset.forecast.projected_change }}{% else %}Locked{% endif %}</p>
-            <p>{% if unlocked_forecast %}{{ asset.forecast.trend }}{% else %}Pro+{% endif %}</p>
+            <p>{{ asset.forecast.projected_change }}</p>
           </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h2>Signal Types</h2>
-        <div class="table-shell">
-          <table class="market-table">
-            <tr><th>Timeframe</th><th>Type</th><th>Signal</th><th>Confidence</th><th>Trend</th><th>Regime</th></tr>
-            {% for tf, item in asset.multi_timeframes.items() %}
-            <tr>
-              <td>{{ tf }}</td>
-              <td>{{ item.signal_type }}</td>
-              <td>{% if unlocked_signals %}{{ item.signal }}{% else %}Locked{% endif %}</td>
-              <td>{% if unlocked_signals %}{{ (item.confidence * 100)|round(0) }}% — {{ item.confidence_label }}{% else %}Basic+{% endif %}</td>
-              <td>{% if unlocked_trends %}{{ item.trend_state }}{% else %}Locked{% endif %}</td>
-              <td>{% if unlocked_trends %}{{ item.regime }}{% else %}Pro+{% endif %}</td>
-            </tr>
-            {% endfor %}
-          </table>
         </div>
       </div>
 
       <div class="card" style="margin-top:24px;">
         <h2>Why this signal?</h2>
-        <p><strong>Confidence note:</strong> {{ asset.signal_meta.confidence_note }}</p>
         <ul>
-          {% if unlocked_signals %}
-            {% for line in asset.signal_meta.why %}
-              <li>{{ line }}</li>
-            {% endfor %}
-          {% else %}
-            <li>Upgrade to Basic+ to inspect signal reasoning.</li>
-          {% endif %}
+          {% for line in asset.signal_meta.why %}
+            <li>{{ line }}</li>
+          {% endfor %}
         </ul>
       </div>
 
       {{ disclaimer|safe }}
     </section>
-    """,
-    asset=asset,
-    signal_html=signal_html,
-    unlocked_signals=unlocked_signals,
-    unlocked_forecast=unlocked_forecast,
-    unlocked_trends=unlocked_trends,
-    in_watchlist=in_watchlist,
-    user=g.get("user"),
-    disclaimer=legal_disclaimer_html(),
-    updated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+    """, asset=asset, sig_class=sig_class, disclaimer=legal_disclaimer_html())
 
-    crypto_breadcrumbs = build_breadcrumbs([
-        {"name": "Home", "url": Config.DOMAIN + "/"},
-        {"name": "Crypto", "url": Config.DOMAIN + "/crypto"},
-        {"name": asset["symbol"], "url": f"{Config.DOMAIN}/crypto/{asset['symbol']}"}
-    ])
-
-    return nav_layout(
-        f"{asset['symbol']} Price, Signal & Forecast - AVA Markets",
-        content,
-        extra_head=live_update_script("detail", asset["symbol"], "crypto"),
-        meta_description=f"Track {asset['name']} ({asset['symbol']}) on AVA Markets with live price updates, multi-timeframe signal analysis, trend regime view, and forecast intelligence.",
-        canonical_url=f"{Config.DOMAIN}/crypto/{asset['symbol']}",
-        og_type="article",
-        json_ld_override=[asset_json_ld("crypto", asset), crypto_breadcrumbs]
-    )
+    return nav_layout(f"{asset['symbol']} - AVA Markets", content)
 
 
 @app.route("/stocks/<symbol>")
@@ -2992,17 +2135,7 @@ def stock_detail(symbol):
     if not asset:
         abort(404)
 
-    unlocked_signals = can_access_signals()
-    unlocked_forecast = can_access_forecast()
-    unlocked_trends = can_access_trends()
-
-    in_watchlist = False
-    if g.user:
-        wl = db.get_watchlist(g.user["id"])
-        in_watchlist = any(x["asset_type"] == "stock" and x["symbol"] == asset["symbol"] for x in wl)
-
     sig_class = {"BUY": "signal-buy", "HOLD": "signal-hold", "SELL": "signal-sell"}[asset["signal"]]
-    signal_html = f'<span id="detail-signal" class="signal {sig_class}">{asset["signal"]}</span>' if unlocked_signals else '<span class="signal signal-locked">Locked</span>'
 
     content = render_template_string("""
     <section class="section">
@@ -3014,780 +2147,60 @@ def stock_detail(symbol):
         {% endif %}
         <div>
           <h1 style="margin:0;">{{ asset.symbol }} — {{ asset.name }}</h1>
-          <div class="asset-subtitle">Multi-timeframe stock intelligence with short-term, trend, and macro signals</div>
-          <div id="detail-updated" class="live-stamp">Last updated: {{ updated_at }} UTC</div>
         </div>
-      </div>
-
-      <div class="card" style="margin-bottom:24px;">
-        <p>
-          AVA Markets tracks {{ asset.name }} ({{ asset.symbol }}) with live price updates,
-          multi-timeframe stock and commodity signal analysis, trend regime detection,
-          and forecast intelligence for short-term and macro market context.
-        </p>
-      </div>
-
-      <div class="btns" style="margin-bottom:18px;">
-        {% if user %}
-          {% if in_watchlist %}
-          <form method="POST" action="/watchlist/remove/stock/{{ asset.symbol }}">
-            <button class="btn btn-secondary" type="submit">Remove from Watchlist</button>
-          </form>
-          {% else %}
-          <form method="POST" action="/watchlist/add/stock/{{ asset.symbol }}">
-            <button class="btn btn-primary" type="submit">Add to Watchlist</button>
-          </form>
-          {% endif %}
-        {% endif %}
       </div>
 
       <div class="detail-grid">
         <div class="card">
           <div class="badge">Live Market</div>
-          <h2><span id="detail-price">{{ asset.price_display }}</span> <span id="detail-change" class="{{ 'up' if asset.dir == 'up' else 'down' }}">{{ asset.change_display }}</span></h2>
-          <div style="margin:12px 0 18px;">{{ signal_html|safe }}</div>
+          <h2>{{ asset.price_display }} <span class="{{ 'up' if asset.dir == 'up' else 'down' }}">{{ asset.change_display }}</span></h2>
+          <div style="margin:12px 0 18px;">
+            <span class="signal {{ sig_class }}">{{ asset.signal }}</span>
+          </div>
           <div class="candle-box">{{ asset.detail_candles|safe }}</div>
         </div>
 
         <div class="mini-grid">
           <div class="metric-card">
-            <h3>Overall Signal</h3>
-            <p>{% if unlocked_signals %}{{ asset.signal_meta.signal }}{% else %}Locked{% endif %}</p>
-            <p id="detail-confidence">Confidence: {% if unlocked_signals %}{{ (asset.signal_meta.confidence * 100)|round(0) }}% — {{ asset.signal_meta.confidence_label }}{% else %}Basic+{% endif %}</p>
+            <h3>Signal</h3>
+            <p>{{ asset.signal_meta.signal }}</p>
           </div>
           <div class="metric-card">
-            <h3>RSI</h3>
-            <p>{% if unlocked_signals %}{{ asset.signal_meta.rsi }}{% else %}Locked{% endif %}</p>
-            <p>Momentum: {% if unlocked_signals %}{{ asset.signal_meta.momentum }}%{% else %}Basic+{% endif %}</p>
+            <h3>Confidence</h3>
+            <p>{{ (asset.signal_meta.confidence * 100)|round(0) }}% — {{ asset.signal_meta.confidence_label }}</p>
           </div>
           <div class="metric-card">
             <h3>Trend</h3>
-            <p>{% if unlocked_trends %}{{ asset.trend_data.state }}{% else %}Locked{% endif %}</p>
-            <p>{% if unlocked_trends %}{{ asset.trend_data.strength }} strength{% else %}Pro+{% endif %}</p>
+            <p>{{ asset.trend_data.state }}</p>
           </div>
           <div class="metric-card">
             <h3>Forecast</h3>
-            <p>{% if unlocked_forecast %}{{ asset.forecast.projected_change }}{% else %}Locked{% endif %}</p>
-            <p>{% if unlocked_forecast %}{{ asset.forecast.trend }}{% else %}Pro+{% endif %}</p>
+            <p>{{ asset.forecast.projected_change }}</p>
           </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h2>Signal Types</h2>
-        <div class="table-shell">
-          <table class="market-table">
-            <tr><th>Timeframe</th><th>Type</th><th>Signal</th><th>Confidence</th><th>Trend</th><th>Regime</th></tr>
-            {% for tf, item in asset.multi_timeframes.items() %}
-            <tr>
-              <td>{{ tf }}</td>
-              <td>{{ item.signal_type }}</td>
-              <td>{% if unlocked_signals %}{{ item.signal }}{% else %}Locked{% endif %}</td>
-              <td>{% if unlocked_signals %}{{ (item.confidence * 100)|round(0) }}% — {{ item.confidence_label }}{% else %}Basic+{% endif %}</td>
-              <td>{% if unlocked_trends %}{{ item.trend_state }}{% else %}Locked{% endif %}</td>
-              <td>{% if unlocked_trends %}{{ item.regime }}{% else %}Pro+{% endif %}</td>
-            </tr>
-            {% endfor %}
-          </table>
         </div>
       </div>
 
       <div class="card" style="margin-top:24px;">
         <h2>Why this signal?</h2>
-        <p><strong>Confidence note:</strong> {{ asset.signal_meta.confidence_note }}</p>
         <ul>
-          {% if unlocked_signals %}
-            {% for line in asset.signal_meta.why %}
-              <li>{{ line }}</li>
-            {% endfor %}
-          {% else %}
-            <li>Upgrade to Basic+ to inspect signal reasoning.</li>
-          {% endif %}
+          {% for line in asset.signal_meta.why %}
+            <li>{{ line }}</li>
+          {% endfor %}
         </ul>
       </div>
 
       {{ disclaimer|safe }}
     </section>
-    """,
-    asset=asset,
-    signal_html=signal_html,
-    unlocked_signals=unlocked_signals,
-    unlocked_forecast=unlocked_forecast,
-    unlocked_trends=unlocked_trends,
-    in_watchlist=in_watchlist,
-    user=g.get("user"),
-    disclaimer=legal_disclaimer_html(),
-    updated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+    """, asset=asset, sig_class=sig_class, disclaimer=legal_disclaimer_html())
 
-    stock_breadcrumbs = build_breadcrumbs([
-        {"name": "Home", "url": Config.DOMAIN + "/"},
-        {"name": "Stocks", "url": Config.DOMAIN + "/stocks"},
-        {"name": asset["symbol"], "url": f"{Config.DOMAIN}/stocks/{asset['symbol']}"}
-    ])
-
-    return nav_layout(
-        f"{asset['symbol']} Price, Signal & Forecast - AVA Markets",
-        content,
-        extra_head=live_update_script("detail", asset["symbol"], "stock"),
-        meta_description=f"Track {asset['name']} ({asset['symbol']}) on AVA Markets with live price updates, multi-timeframe signal analysis, trend regime view, and forecast intelligence.",
-        canonical_url=f"{Config.DOMAIN}/stocks/{asset['symbol']}",
-        og_type="article",
-        json_ld_override=[asset_json_ld("stock", asset), stock_breadcrumbs]
-    )
-
-@app.route("/forecast")
-def forecast():
-    unlocked = can_access_forecast()
-    sample = get_crypto_detail("BTC") or {}
-    f = sample.get("forecast", {"trend": "Stable", "projected_change": "+0.00%", "confidence_band": "90%", "summary": "Not enough data."})
-
-    cards = """
-      <div class="price-card"><h3>Trend</h3><div style="font-size:2rem;font-weight:800;">Locked</div><p>Pro+</p></div>
-      <div class="price-card"><h3>Projected View</h3><div style="font-size:2rem;font-weight:800;">Locked</div><p>Pro+</p></div>
-      <div class="price-card"><h3>Confidence Band</h3><div style="font-size:2rem;font-weight:800;">Locked</div><p>Pro+</p></div>
-    """
-    if unlocked:
-        cards = f"""
-          <div class="price-card"><h3>Trend</h3><div style="font-size:2rem;font-weight:800;" class="up">{f['trend']}</div><p>{f['summary']}</p></div>
-          <div class="price-card"><h3>Projected View</h3><div style="font-size:2rem;font-weight:800;" class="up">{f['projected_change']}</div><p>Multi-timeframe projection signal output.</p></div>
-          <div class="price-card"><h3>Confidence Band</h3><div style="font-size:2rem;font-weight:800;">{f['confidence_band']}</div><p>Indicator agreement level, not guaranteed outcome probability.</p></div>
-        """
-    content = f"""
-    <section class="section">
-      <h1>Forecast</h1>
-      <p class="section-sub">Forecast intelligence is built from multi-timeframe AVA Brain analysis.</p>
-      <div class="market-grid">{cards}</div>
-      {legal_disclaimer_html()}
-    </section>
-    """
-    return nav_layout(
-        "Forecast Intelligence - AVA Markets",
-        content,
-        meta_description="Explore AVA Markets forecast intelligence built from multi-timeframe technical analysis across crypto, stocks, and commodities."
-    )
-
-
-@app.route("/trends")
-def trends():
-    unlocked = can_access_trends()
-    sample = get_crypto_detail("BTC") or {}
-    t = sample.get("trend_data", {"state": "Neutral", "strength": "Low", "read": "Mixed", "summary": "Not enough data."})
-
-    cards = """
-      <div class="price-card"><h3>Trend State</h3><div style="font-size:2rem;font-weight:800;">Locked</div><p>Pro+</p></div>
-      <div class="price-card"><h3>Trend Strength</h3><div style="font-size:2rem;font-weight:800;">Locked</div><p>Pro+</p></div>
-      <div class="price-card"><h3>Regime Read</h3><div style="font-size:2rem;font-weight:800;">Locked</div><p>Pro+</p></div>
-    """
-    if unlocked:
-        cards = f"""
-          <div class="price-card"><h3>Trend State</h3><div style="font-size:2rem;font-weight:800;" class="up">{t['state']}</div><p>{t['summary']}</p></div>
-          <div class="price-card"><h3>Trend Strength</h3><div style="font-size:2rem;font-weight:800;">{t['strength']}</div><p>Directional magnitude from the multi-timeframe model.</p></div>
-          <div class="price-card"><h3>Regime Read</h3><div style="font-size:2rem;font-weight:800;">{t['read']}</div><p>Current market structure classification.</p></div>
-        """
-    content = f"""
-    <section class="section">
-      <h1>Trends</h1>
-      <p class="section-sub">Trend intelligence adapts to market regime instead of relying on one static rule set.</p>
-      <div class="market-grid">{cards}</div>
-      {legal_disclaimer_html()}
-    </section>
-    """
-    return nav_layout(
-        "Trend Intelligence - AVA Markets",
-        content,
-        meta_description="Explore AVA Markets trend intelligence with regime-aware market analysis, trend state, strength, and directional context."
-    )
-
-
-@app.route("/performance")
-def performance():
-    refresh_signal_outcomes()
-    rows = db.get_performance_summary(days=30)
-    summary = summarize_performance(rows)
-
-    table_rows = ""
-    for r in rows[:100]:
-        outcome_class = "up" if r["outcome"] == "correct" else "down"
-        table_rows += f"""
-        <tr>
-          <td>{r['asset_type']}</td>
-          <td>{r['symbol']}</td>
-          <td>{r['timeframe']}</td>
-          <td>{r['signal_type']}</td>
-          <td>{r['signal']}</td>
-          <td>{float(r['confidence'] or 0) * 100:.0f}%</td>
-          <td class="{outcome_class}">{r['outcome']}</td>
-          <td class="{'up' if float(r['return_pct'] or 0) >= 0 else 'down'}">{float(r['return_pct'] or 0):+.2f}%</td>
-          <td>{r['horizon']}</td>
-          <td>{r['created_at']}</td>
-        </tr>
-        """
-
-    best_assets_html = "".join(f"<li>{sym}: {ret:+.2f}% avg</li>" for sym, ret in summary["best_assets"]) or "<li>No evaluated signals yet.</li>"
-
-    content = f"""
-    <section class="section">
-      <h1>Signal Performance</h1>
-      <p class="section-sub">Transparent 30-day signal track record across evaluated horizons.</p>
-
-      <div class="market-grid">
-        <div class="price-card"><h3>Total Evaluated</h3><div style="font-size:2rem;font-weight:800;">{summary['total']}</div></div>
-        <div class="price-card"><h3>BUY Accuracy</h3><div style="font-size:2rem;font-weight:800;">{summary['buy_accuracy']}%</div></div>
-        <div class="price-card"><h3>SELL Accuracy</h3><div style="font-size:2rem;font-weight:800;">{summary['sell_accuracy']}%</div></div>
-        <div class="price-card"><h3>HOLD Accuracy</h3><div style="font-size:2rem;font-weight:800;">{summary['hold_accuracy']}%</div></div>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h3>Average Return</h3>
-        <p style="font-size:1.2rem;"><strong>{summary['avg_return']:+.2f}%</strong></p>
-        <h3>Best Assets</h3>
-        <ul>{best_assets_html}</ul>
-      </div>
-
-      <div class="table-shell" style="margin-top:24px;">
-        <table class="market-table">
-          <tr>
-            <th>Market</th><th>Symbol</th><th>Timeframe</th><th>Signal Type</th>
-            <th>Signal</th><th>Confidence</th><th>Outcome</th><th>Return</th><th>Horizon</th><th>Created</th>
-          </tr>
-          {table_rows or "<tr><td colspan='10'>No performance data yet.</td></tr>"}
-        </table>
-      </div>
-
-      {legal_disclaimer_html()}
-    </section>
-    """
-    return nav_layout(
-        "Signal Performance - AVA Markets",
-        content,
-        meta_description="Review transparent AVA Markets signal performance, including BUY, SELL, and HOLD accuracy, evaluated returns, and recent track record data."
-    )
-
-
-@app.route("/signal-changes")
-def signal_changes():
-    rows = db.get_recent_signal_changes(limit=100)
-    table_rows = ""
-    for r in rows:
-        table_rows += f"""
-        <tr>
-          <td>{r['asset_type']}</td>
-          <td>{r['symbol']}</td>
-          <td>{r['timeframe']}</td>
-          <td>{r['signal_type']}</td>
-          <td>{r.get('old_signal') or '-'}</td>
-          <td>{r.get('new_signal') or '-'}</td>
-          <td>{r['changed_at']}</td>
-        </tr>
-        """
-    content = f"""
-    <section class="section">
-      <h1>Recent Signal Changes</h1>
-      <p class="section-sub">Track when signals flipped, not just what they are now.</p>
-      <div class="table-shell">
-        <table class="market-table">
-          <tr><th>Market</th><th>Symbol</th><th>Timeframe</th><th>Type</th><th>Old</th><th>New</th><th>Changed</th></tr>
-          {table_rows or "<tr><td colspan='7'>No signal changes yet.</td></tr>"}
-        </table>
-      </div>
-      {legal_disclaimer_html()}
-    </section>
-    """
-    return nav_layout(
-        "Recent Signal Changes - AVA Markets",
-        content,
-        meta_description="Track recent signal flips across crypto, stocks, and commodities on AVA Markets, including timeframe, signal type, and change history."
-    )
-
-
-@app.route("/pricing")
-def pricing():
-    content = render_template_string("""
-    <section class="section">
-      <h1>Pricing</h1>
-      <p class="section-sub">Launch pricing designed to reduce friction while proving trust and retention.</p>
-      <div class="market-grid">
-        <div class="price-card">
-          <h3>Free</h3>
-          <div style="font-size:2.4rem;font-weight:800;">$0</div>
-          <p>Browse crypto + stocks • candles • market movement previews</p>
-        </div>
-
-        <div class="price-card">
-          <h3>Basic</h3>
-          <div style="font-size:2.4rem;font-weight:800;">$9</div>
-          <p>Unlock multi-timeframe crypto + stock signals and confidence labels</p>
-          {% if user %}
-            <form method="POST" action="/checkout/basic"><button class="btn btn-primary" type="submit">Choose Basic</button></form>
-          {% endif %}
-        </div>
-
-        <div class="price-card">
-          <h3>Pro</h3>
-          <div style="font-size:2.4rem;font-weight:800;">$29</div>
-          <p>Everything in Basic • forecasts • trend regime views • better decision context</p>
-          {% if user %}
-            <form method="POST" action="/checkout/pro"><button class="btn btn-primary" type="submit">Choose Pro</button></form>
-          {% endif %}
-        </div>
-
-        <div class="price-card">
-          <h3>Elite</h3>
-          <div style="font-size:2.4rem;font-weight:800;">$79</div>
-          <p>Everything in Pro • highest access tier • positioned for serious users</p>
-          {% if user %}
-            <form method="POST" action="/checkout/elite"><button class="btn btn-primary" type="submit">Choose Elite</button></form>
-          {% endif %}
-        </div>
-
-        <div class="price-card">
-          <h3>Enterprise</h3>
-          <div style="font-size:2.4rem;font-weight:800;">Custom</div>
-          <p>API access, custom market coverage, team seats, white-label, and direct support</p>
-          <a class="btn btn-secondary" href="mailto:{{ contact_email }}">Contact Us</a>
-        </div>
-      </div>
-
-      {% if not user %}
-      <div class="btns">
-        <a class="btn btn-primary" href="/register">Create Account</a>
-        <a class="btn btn-secondary" href="/login">Login</a>
-      </div>
-      {% endif %}
-
-      <div class="card" style="margin-top:24px;">
-        <h2>Pricing FAQ</h2>
-        <p><strong>What’s included in Free?</strong><br>Free includes browsing market pages, candles, and movement previews.</p>
-        <p><strong>What’s included in Basic?</strong><br>Basic unlocks multi-timeframe crypto and stock signals.</p>
-        <p><strong>What’s included in Pro?</strong><br>Pro includes everything in Basic plus forecast and trend intelligence.</p>
-        <p><strong>How does Enterprise work?</strong><br>Enterprise is custom for API, team, and advanced commercial use cases.</p>
-      </div>
-
-      {{ disclaimer|safe }}
-    </section>
-    """, user=g.get("user"), contact_email=Config.CONTACT_EMAIL, disclaimer=legal_disclaimer_html())
-
-    pricing_faq = faq_json_ld([
-        ("What does the Free plan include?", "The Free plan includes browsing crypto, stocks, commodities, candle views, and market movement previews."),
-        ("What does Basic unlock?", "Basic unlocks multi-timeframe signal access for crypto and stocks."),
-        ("What does Pro unlock?", "Pro unlocks everything in Basic plus forecast views and trend intelligence."),
-        ("Is Enterprise pricing fixed?", "No. Enterprise is custom and designed for API access, teams, and advanced commercial use cases.")
-    ])
-
-    return nav_layout(
-        "Pricing - AVA Markets",
-        content,
-        meta_description="View AVA Markets pricing for free market browsing, Basic signal access, Pro forecast and trend intelligence, Elite access, and custom Enterprise plans.",
-        json_ld_override=pricing_faq
-    )
-
-
-@app.route("/watchlist/add/<asset_type>/<symbol>", methods=["POST"])
-@require_login
-def watchlist_add(asset_type, symbol):
-    if asset_type not in ["crypto", "stock"]:
-        return redirect("/dashboard")
-    db.add_watchlist(g.user["id"], asset_type, symbol)
-    return redirect(request.referrer or "/dashboard")
-
-
-@app.route("/watchlist/remove/<asset_type>/<symbol>", methods=["POST"])
-@require_login
-def watchlist_remove(asset_type, symbol):
-    if asset_type not in ["crypto", "stock"]:
-        return redirect("/dashboard")
-    db.remove_watchlist(g.user["id"], asset_type, symbol)
-    return redirect(request.referrer or "/dashboard")
-
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if g.user:
-        return redirect("/dashboard")
-
-    if request.method == "GET":
-        content = """
-        <div class="form-shell">
-          <div class="form-card">
-            <h1>Create account</h1>
-            <p>Start using AVA Markets in minutes.</p>
-            <form method="POST">
-              <input type="email" name="email" placeholder="Email" required>
-              <input type="password" name="password" placeholder="Password (min 6 chars)" required>
-              <button type="submit">Register</button>
-            </form>
-          </div>
-        </div>
-        """
-        return nav_layout(
-            "Register - AVA Markets",
-            content,
-            meta_description="Create your AVA Markets account.",
-            robots_content="noindex, nofollow"
-        )
-
-    email = (request.form.get("email") or "").strip().lower()
-    password = (request.form.get("password") or "").strip()
-
-    if not email or len(password) < 6:
-        return nav_layout(
-            "Register Error",
-            '<div class="form-shell"><div class="form-card"><div class="error">Email and password (min 6 chars) required.</div><a href="/register">Try again</a></div></div>',
-            robots_content="noindex, nofollow"
-        )
-
-    user = db.create_user(email, password)
-    if not user:
-        return nav_layout(
-            "Register Error",
-            '<div class="form-shell"><div class="form-card"><div class="error">Email already registered.</div><a href="/login">Login instead</a></div></div>',
-            robots_content="noindex, nofollow"
-        )
-
-    token = db.create_session(user["id"])
-    resp = make_response(redirect("/dashboard"))
-    resp.set_cookie("session_token", token, httponly=True, samesite="Lax", max_age=30 * 86400)
-    return resp
-
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if g.user:
-        return redirect("/dashboard")
-
-    if request.method == "GET":
-        content = """
-        <div class="form-shell">
-          <div class="form-card">
-            <h1>Login</h1>
-            <p>Access your AVA Markets account.</p>
-            <form method="POST">
-              <input type="email" name="email" placeholder="Email" required>
-              <input type="password" name="password" placeholder="Password" required>
-              <button type="submit">Login</button>
-            </form>
-          </div>
-        </div>
-        """
-        return nav_layout(
-            "Login - AVA Markets",
-            content,
-            meta_description="Log in to your AVA Markets account.",
-            robots_content="noindex, nofollow"
-        )
-
-    email = (request.form.get("email") or "").strip().lower()
-    password = (request.form.get("password") or "").strip()
-
-    user = db.verify_user(email, password)
-    if not user:
-        return nav_layout(
-            "Login Error",
-            '<div class="form-shell"><div class="form-card"><div class="error">Invalid credentials.</div><a href="/login">Try again</a></div></div>',
-            robots_content="noindex, nofollow"
-        )
-
-    token = db.create_session(user["id"])
-    resp = make_response(redirect("/dashboard"))
-    resp.set_cookie("session_token", token, httponly=True, samesite="Lax", max_age=30 * 86400)
-    return resp
-
-
-@app.route("/logout")
-def logout():
-    token = request.cookies.get("session_token")
-    if token:
-        db.delete_session(token)
-    resp = make_response(redirect("/"))
-    resp.delete_cookie("session_token")
-    return resp
-
-
-@app.route("/dashboard")
-@require_login
-def dashboard():
-    user = g.user
-    watchlist = db.get_watchlist(user["id"])
-
-    watch_rows = ""
-    for item in watchlist[:20]:
-        href = f"/crypto/{item['symbol']}" if item["asset_type"] == "crypto" else f"/stocks/{item['symbol']}"
-        watch_rows += f"""
-        <tr>
-          <td>{item['asset_type']}</td>
-          <td><a href="{href}">{item['symbol']}</a></td>
-          <td>{item['created_at']}</td>
-          <td>
-            <form method="POST" action="/watchlist/remove/{item['asset_type']}/{item['symbol']}">
-              <button class="btn btn-secondary" type="submit">Remove</button>
-            </form>
-          </td>
-        </tr>
-        """
-
-    billing_button = """
-        <form method="POST" action="/billing/portal">
-          <button class="btn btn-primary" type="submit">Billing Portal</button>
-        </form>
-    """ if user.get("stripe_customer_id") else '<a class="btn btn-primary" href="/pricing">Upgrade Plan</a>'
-
-    content = f"""
-    <section class="section">
-      <h1>Dashboard</h1>
-      <p class="section-sub">Your AVA Markets account overview.</p>
-
-      <div class="dashboard-grid">
-        <div class="dashboard-card">
-          <h3>Account</h3>
-          <p><strong>Email:</strong> {user['email']}</p>
-          <p><strong>Tier:</strong> <span class="tier">{user['tier']}</span></p>
-          <p><strong>Subscription:</strong> {user['subscription_status']}</p>
-        </div>
-
-        <div class="dashboard-card">
-          <h3>Access</h3>
-          <p>Signals: {"Unlocked" if can_access_signals() else "Locked"}</p>
-          <p>Forecast: {"Unlocked" if can_access_forecast() else "Locked"}</p>
-          <p>Trends: {"Unlocked" if can_access_trends() else "Locked"}</p>
-        </div>
-
-        <div class="dashboard-card">
-          <h3>API Key</h3>
-          <div class="key">{user['api_key']}</div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:24px;">
-        <h2>Watchlist</h2>
-        <div class="table-shell">
-          <table class="market-table">
-            <tr><th>Market</th><th>Symbol</th><th>Added</th><th>Action</th></tr>
-            {watch_rows or "<tr><td colspan='4'>No watchlist items yet.</td></tr>"}
-          </table>
-        </div>
-      </div>
-
-      <div class="btns">
-        {billing_button}
-        <a class="btn btn-secondary" href="/performance">View Performance</a>
-        <a class="btn btn-secondary" href="/signal-changes">View Signal Changes</a>
-        <a class="btn btn-secondary" href="/logout">Logout</a>
-      </div>
-    </section>
-    """
-    return nav_layout(
-        "Dashboard - AVA Markets",
-        content,
-        meta_description="Your AVA Markets account dashboard.",
-        robots_content="noindex, nofollow"
-    )
-
-
-@app.route("/checkout/<tier>", methods=["POST"])
-@require_login
-def checkout(tier):
-    tier = tier.lower()
-    if tier not in ["basic", "pro", "elite"]:
-        return redirect("/pricing")
-
-    success_url = f"{Config.DOMAIN}/dashboard?checkout=success"
-    cancel_url = f"{Config.DOMAIN}/pricing?checkout=cancel"
-
-    session = sm.create_checkout(g.user["id"], g.user["email"], tier, success_url, cancel_url)
-    if session and getattr(session, "url", None):
-        return redirect(session.url)
-
-    db.update_user(g.user["id"], tier=tier, subscription_status="active")
-    db.log_payment(g.user["id"], "manual", f"local_{tier}_{int(time.time())}", Config.TIERS[tier]["price"], "succeeded")
-    return redirect("/dashboard")
-
-
-@app.route("/billing/portal", methods=["POST"])
-@require_login
-def billing_portal():
-    if not g.user.get("stripe_customer_id"):
-        return redirect("/dashboard")
-    session = sm.create_portal(g.user["stripe_customer_id"], f"{Config.DOMAIN}/dashboard")
-    if session and getattr(session, "url", None):
-        return redirect(session.url)
-    return redirect("/dashboard")
-
-
-@app.route("/webhook/stripe", methods=["POST"])
-def stripe_webhook():
-    payload = request.data
-    sig = request.headers.get("Stripe-Signature")
-
-    if stripe and Config.STRIPE_WEBHOOK_SECRET:
-        try:
-            event = stripe.Webhook.construct_event(payload, sig, Config.STRIPE_WEBHOOK_SECRET)
-        except Exception as e:
-            logger.error(f"Bad Stripe signature: {e}")
-            return jsonify({"error": "Bad signature"}), 400
-    else:
-        try:
-            if isinstance(payload, bytes):
-                payload = payload.decode("utf-8")
-            event = json.loads(payload)
-        except Exception as e:
-            logger.error(f"Bad payload: {e}")
-            return jsonify({"error": "Bad payload"}), 400
-
-    etype = event.get("type", "")
-    obj = event.get("data", {}).get("object", {})
-
-    if etype == "checkout.session.completed":
-        meta = obj.get("metadata", {})
-        uid = int(meta.get("user_id", 0))
-        tier = meta.get("tier", "basic")
-        if uid:
-            db.update_user(
-                uid,
-                stripe_customer_id=obj.get("customer"),
-                stripe_subscription_id=obj.get("subscription"),
-                tier=tier,
-                subscription_status="active"
-            )
-
-    elif etype == "invoice.payment_succeeded":
-        customer_id = obj.get("customer")
-        amount = (obj.get("amount_paid") or 0) / 100
-        user = db.get_user_by_stripe_customer(customer_id)
-        if user:
-            db.log_payment(user["id"], "stripe", obj.get("id", ""), amount, "succeeded")
-
-    elif etype in ["customer.subscription.deleted", "customer.subscription.updated"]:
-        customer_id = obj.get("customer")
-        status = obj.get("status", "canceled")
-        user = db.get_user_by_stripe_customer(customer_id)
-        if user:
-            if status in ["canceled", "unpaid", "incomplete_expired"]:
-                db.update_user(user["id"], tier="free", subscription_status=status)
-            else:
-                db.update_user(user["id"], subscription_status=status)
-
-    return jsonify({"received": True})
-
-
-@app.route("/admin/login", methods=["GET", "POST"])
-def admin_login():
-    if request.cookies.get("admin_auth") == "1":
-        return redirect("/admin")
-
-    error = ""
-    if request.method == "POST":
-        username = (request.form.get("username") or "").strip()
-        password = (request.form.get("password") or "").strip()
-
-        if username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD:
-            resp = make_response(redirect("/admin"))
-            resp.set_cookie("admin_auth", "1", httponly=True, samesite="Lax", max_age=60 * 60 * 12)
-            return resp
-
-        error = "Invalid admin credentials."
-
-    content = render_template_string("""
-    <div class="form-shell">
-      <div class="form-card">
-        <h1>Admin Login</h1>
-        <p>Restricted access.</p>
-        {% if error %}<div class="error">{{ error }}</div>{% endif %}
-        <form method="POST">
-          <input type="text" name="username" placeholder="Username" required>
-          <input type="password" name="password" placeholder="Password" required>
-          <button type="submit">Enter Admin</button>
-        </form>
-      </div>
-    </div>
-    """, error=error)
-    return nav_layout(
-        "Admin Login - AVA Markets",
-        content,
-        meta_description="Restricted admin login for AVA Markets.",
-        robots_content="noindex, nofollow"
-    )
-
-
-@app.route("/admin/logout")
-def admin_logout():
-    resp = make_response(redirect("/"))
-    resp.delete_cookie("admin_auth")
-    return resp
-
-
-@app.route("/admin")
-@require_admin
-def admin():
-    users = db.get_all_users()
-    payments = db.get_all_payments()
-
-    user_rows = ""
-    for u in users:
-        user_rows += f"""
-        <tr>
-          <td>{u['id']}</td>
-          <td>{u['email']}</td>
-          <td>{u['tier']}</td>
-          <td>{u['subscription_status']}</td>
-          <td>{u['created_at']}</td>
-        </tr>
-        """
-
-    payment_rows = ""
-    for p in payments:
-        payment_rows += f"""
-        <tr>
-          <td>{p.get('email') or '-'}</td>
-          <td>{p['provider']}</td>
-          <td>{p['payment_id']}</td>
-          <td>{p['amount']}</td>
-          <td>{p['status']}</td>
-          <td>{p['created_at']}</td>
-        </tr>
-        """
-
-    content = f"""
-    <section class="section">
-      <div class="btns" style="justify-content:space-between;">
-        <h1>Admin Panel</h1>
-        <a class="btn btn-secondary" href="/admin/logout">Logout</a>
-      </div>
-
-      <div class="section">
-        <h2 class="section-title">Users</h2>
-        <div class="table-shell">
-          <table class="market-table">
-            <tr><th>ID</th><th>Email</th><th>Tier</th><th>Status</th><th>Created</th></tr>
-            {user_rows or "<tr><td colspan='5'>No users found.</td></tr>"}
-          </table>
-        </div>
-      </div>
-
-      <div class="section">
-        <h2 class="section-title">Payments</h2>
-        <div class="table-shell">
-          <table class="market-table">
-            <tr><th>Email</th><th>Provider</th><th>Payment ID</th><th>Amount</th><th>Status</th><th>Created</th></tr>
-            {payment_rows or "<tr><td colspan='6'>No payments found.</td></tr>"}
-          </table>
-        </div>
-      </div>
-    </section>
-    """
-    return nav_layout(
-        "Admin - AVA Markets",
-        content,
-        meta_description="Restricted admin panel.",
-        robots_content="noindex, nofollow"
-    )
+    return nav_layout(f"{asset['symbol']} - AVA Markets", content)
 
 
 @app.errorhandler(404)
 def not_found(e):
     return nav_layout(
         "404",
-        "<section class='section'><div class='card'><h1>404</h1><p>Page not found.</p></div></section>",
-        robots_content="noindex, nofollow"
+        "<section class='section'><div class='card'><h1>404</h1><p>Page not found.</p></div></section>"
     ), 404
 
 
@@ -3796,15 +2209,19 @@ def server_error(e):
     logger.exception("Unhandled server error")
     return nav_layout(
         "500",
-        "<section class='section'><div class='card'><h1>500</h1><p>Internal server error.</p></div></section>",
-        robots_content="noindex, nofollow"
+        "<section class='section'><div class='card'><h1>500</h1><p>Internal server error.</p></div></section>"
     ), 500
 
 
 try:
-    refresh_signal_outcomes()
+    fetch_crypto_quotes_safe(force_refresh=True)
 except Exception as e:
-    logger.warning(f"Initial outcome refresh failed: {e}")
+    logger.warning(f"Initial crypto cache warm failed: {e}")
+
+try:
+    fetch_stock_quotes_safe(force_refresh=True)
+except Exception as e:
+    logger.warning(f"Initial stock cache warm failed: {e}")
 
 
 if __name__ == "__main__":
