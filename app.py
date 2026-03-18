@@ -350,7 +350,7 @@ STOCK_DOMAINS = {
 }
 
 REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "12"))
-FINNHUB_API_KEY = d6tgai1r01qhkb443iv0d6tgai1r01qhkb443ivg
+FINNHUB_API_KEY = FINNHUB_API_KEY = os.environ.get("d6tgai1r01qhkb443iv0d6tgai1r01qhkb443ivg", "").strip()
 
 COINCAP_IDS = {
     "BTC": "bitcoin",
