@@ -350,25 +350,26 @@ STOCK_DOMAINS = {
 }
 
 REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "12"))
-FINNHUB_API_KEY = FINNHUB_API_KEY = os.environ.get("d6tgai1r01qhkb443iv0d6tgai1r01qhkb443ivg", "").strip()
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "").strip()
+TWELVEDATA_API_KEY = os.environ.get("TWELVEDATA_API_KEY", "").strip()
 
-COINCAP_IDS = {
+COINGECKO_IDS = {
     "BTC": "bitcoin",
     "ETH": "ethereum",
-    "BNB": "binance-coin",
+    "BNB": "binancecoin",
     "SOL": "solana",
-    "XRP": "xrp",
+    "XRP": "ripple",
     "DOGE": "dogecoin",
     "ADA": "cardano",
-    "AVAX": "avalanche",
+    "AVAX": "avalanche-2",
     "LINK": "chainlink",
     "DOT": "polkadot",
-    "MATIC": "polygon",
+    "MATIC": "matic-network",
     "LTC": "litecoin",
     "BCH": "bitcoin-cash",
     "ATOM": "cosmos",
     "UNI": "uniswap",
-    "NEAR": "near-protocol",
+    "NEAR": "near",
     "APT": "aptos",
     "ARB": "arbitrum",
     "OP": "optimism",
@@ -378,7 +379,7 @@ COINCAP_IDS = {
     "TRX": "tron",
     "ETC": "ethereum-classic",
     "XLM": "stellar",
-    "HBAR": "hedera",
+    "HBAR": "hedera-hashgraph",
     "ICP": "internet-computer",
     "FIL": "filecoin",
     "INJ": "injective-protocol",
@@ -387,7 +388,7 @@ COINCAP_IDS = {
     "IMX": "immutable-x",
     "SEI": "sei-network",
     "TIA": "celestia",
-    "JUP": "jupiter",
+    "JUP": "jupiter-exchange-solana",
     "PYTH": "pyth-network",
     "BONK": "bonk",
     "WIF": "dogwifcoin",
@@ -397,7 +398,7 @@ COINCAP_IDS = {
     "MKR": "maker",
     "ALGO": "algorand",
     "VET": "vechain",
-    "EGLD": "multiversx",
+    "EGLD": "elrond-erd-2",
     "THETA": "theta-token",
     "SAND": "the-sandbox",
     "MANA": "decentraland",
@@ -406,7 +407,7 @@ COINCAP_IDS = {
     "FLOW": "flow",
     "KAS": "kaspa",
     "KAVA": "kava",
-    "DYDX": "dydx",
+    "DYDX": "dydx-chain",
     "WLD": "worldcoin-wld",
     "ARKM": "arkham",
     "STRK": "starknet",
@@ -415,7 +416,7 @@ COINCAP_IDS = {
     "JASMY": "jasmycoin",
     "LDO": "lido-dao",
     "CRV": "curve-dao-token",
-    "SNX": "synthetix-network-token",
+    "SNX": "havven",
     "COMP": "compound-governance-token",
     "1INCH": "1inch",
     "BAT": "basic-attention-token",
@@ -516,7 +517,6 @@ FALLBACK_STOCKS = [
     {"symbol": "GC=F", "name": "Gold Futures", "price": 2345.20, "change": 0.35, "dir": "up", "signal": "HOLD", "logo": None, "icon": get_asset_icon("GC=F")},
     {"symbol": "CL=F", "name": "Oil Futures", "price": 81.12, "change": -0.72, "dir": "down", "signal": "SELL", "logo": None, "icon": get_asset_icon("CL=F")},
 ]
-
 
 class Database:
     def __init__(self, path):
@@ -1487,36 +1487,44 @@ def compute_light_signal(change):
     return "HOLD"
 
 
-def fetch_crypto_from_coincap():
-    symbol_to_id = {s: COINCAP_IDS[s] for s, _ in CRYPTO_TOP_90 if s in COINCAP_IDS}
+def fetch_crypto_from_coingecko():
+    symbol_to_id = {s: COINGECKO_IDS[s] for s, _ in CRYPTO_TOP_90 if s in COINGECKO_IDS}
     if not symbol_to_id:
         return []
 
-    reverse_ids = {v: k for k, v in symbol_to_id.items()}
     ids_needed = list(symbol_to_id.values())
-
+    reverse_ids = {v: k for k, v in symbol_to_id.items()}
     results = []
-    chunk_size = 20
+    chunk_size = 40
 
     for i in range(0, len(ids_needed), chunk_size):
         chunk = ids_needed[i:i + chunk_size]
         r = requests.get(
-            "https://api.coincap.io/v2/assets",
-            params={"ids": ",".join(chunk)},
-            timeout=REQUESTS_TIMEOUT
+            "https://api.coingecko.com/api/v3/coins/markets",
+            params={
+                "vs_currency": "usd",
+                "ids": ",".join(chunk),
+                "order": "market_cap_desc",
+                "per_page": len(chunk),
+                "page": 1,
+                "sparkline": "false",
+                "price_change_percentage": "24h"
+            },
+            timeout=REQUESTS_TIMEOUT,
+            headers={"accept": "application/json"}
         )
         r.raise_for_status()
-        data = r.json().get("data", [])
+        data = r.json()
 
         for item in data:
-            coincap_id = item.get("id", "")
-            symbol = reverse_ids.get(coincap_id)
+            coin_id = item.get("id", "")
+            symbol = reverse_ids.get(coin_id)
             if not symbol:
                 continue
 
             try:
-                price = float(item.get("priceUsd") or 0)
-                change = float(item.get("changePercent24Hr") or 0)
+                price = float(item.get("current_price") or 0)
+                change = float(item.get("price_change_percentage_24h") or 0)
             except Exception:
                 continue
 
@@ -1533,7 +1541,7 @@ def fetch_crypto_from_coincap():
                 "logo": get_crypto_logo(symbol),
             })
 
-        time.sleep(0.08)
+        time.sleep(0.15)
 
     payload_map = {item["symbol"]: item for item in results}
     ordered = [payload_map[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in payload_map]
@@ -1605,11 +1613,11 @@ def fetch_crypto_from_kraken():
 
 def fetch_crypto_quotes_safe():
     try:
-        data = fetch_crypto_from_coincap()
+        data = fetch_crypto_from_coingecko()
         if data:
             return data
     except Exception as e:
-        logger.warning(f"fetch_crypto_quotes_safe CoinCap failed: {e}")
+        logger.warning(f"fetch_crypto_quotes_safe CoinGecko failed: {e}")
 
     try:
         data = fetch_crypto_from_kraken()
@@ -1622,11 +1630,73 @@ def fetch_crypto_quotes_safe():
     return []
 
 
+def normalize_stock_symbol_for_twelvedata(symbol):
+    mapping = {
+        "BRK-B": "BRK.B",
+    }
+    return mapping.get(symbol.upper(), symbol.upper())
+
+
 def normalize_stock_symbol_for_finnhub(symbol):
     mapping = {
         "BRK-B": "BRK.B",
     }
     return mapping.get(symbol.upper(), symbol.upper())
+
+
+def fetch_stock_quotes_from_twelvedata():
+    if not TWELVEDATA_API_KEY:
+        raise Exception("TWELVEDATA_API_KEY not set")
+
+    results = []
+
+    for original_symbol, _name in STOCK_UNIVERSE:
+        if "=" in original_symbol:
+            continue
+
+        api_symbol = normalize_stock_symbol_for_twelvedata(original_symbol)
+
+        r = requests.get(
+            "https://api.twelvedata.com/quote",
+            params={
+                "symbol": api_symbol,
+                "apikey": TWELVEDATA_API_KEY,
+            },
+            timeout=REQUESTS_TIMEOUT
+        )
+        r.raise_for_status()
+        item = r.json()
+
+        if isinstance(item, dict) and item.get("code"):
+            continue
+
+        try:
+            price = float(item.get("close") or 0)
+            percent_change_raw = item.get("percent_change")
+            if percent_change_raw in [None, ""]:
+                change = 0.0
+            else:
+                change = float(str(percent_change_raw).replace("%", ""))
+        except Exception:
+            continue
+
+        if price <= 0:
+            continue
+
+        results.append({
+            "symbol": original_symbol,
+            "name": STOCK_NAME_MAP.get(original_symbol, original_symbol),
+            "price": price,
+            "change": change,
+            "dir": "up" if change >= 0 else "down",
+            "signal": compute_light_signal(change),
+            "logo": get_stock_logo(original_symbol),
+            "icon": get_asset_icon(original_symbol),
+        })
+
+        time.sleep(0.12)
+
+    return results
 
 
 def fetch_stock_quotes_from_finnhub():
@@ -1680,12 +1750,23 @@ def fetch_stock_quotes_from_finnhub():
 
 def fetch_stock_quotes_safe():
     try:
+        payload = fetch_stock_quotes_from_twelvedata()
+        if payload:
+            existing = {x["symbol"] for x in payload}
+            for item in FALLBACK_STOCKS:
+                if item["symbol"] not in existing:
+                    payload.append(dict(item))
+            return payload
+    except Exception as e:
+        logger.warning(f"fetch_stock_quotes_safe failed via Twelve Data: {e}")
+
+    try:
         payload = fetch_stock_quotes_from_finnhub()
-        existing = {x["symbol"] for x in payload}
-        for item in FALLBACK_STOCKS:
-            if item["symbol"] not in existing:
-                payload.append(dict(item))
-        if len(payload) >= 10:
+        if payload:
+            existing = {x["symbol"] for x in payload}
+            for item in FALLBACK_STOCKS:
+                if item["symbol"] not in existing:
+                    payload.append(dict(item))
             return payload
     except Exception as e:
         logger.warning(f"fetch_stock_quotes_safe failed via Finnhub: {e}")
@@ -2563,7 +2644,6 @@ def home():
         json_ld_override=homepage_json_ld()
     )
 
-
 @app.route("/crypto")
 def crypto():
     page = int(request.args.get("page", 1) or 1)
@@ -3054,7 +3134,6 @@ def stock_detail(symbol):
         og_type="article",
         json_ld_override=[asset_json_ld("stock", asset), stock_breadcrumbs]
     )
-
 
 @app.route("/forecast")
 def forecast():
