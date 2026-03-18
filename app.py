@@ -349,7 +349,148 @@ STOCK_DOMAINS = {
     "QCOM": "qualcomm.com",
 }
 
-BINANCE_SYMBOLS = {symbol: f"{symbol}USDT" for symbol, _ in CRYPTO_TOP_90}
+REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "12"))
+FINNHUB_API_KEY = d6tgai1r01qhkb443iv0d6tgai1r01qhkb443ivg
+
+COINCAP_IDS = {
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+    "BNB": "binance-coin",
+    "SOL": "solana",
+    "XRP": "xrp",
+    "DOGE": "dogecoin",
+    "ADA": "cardano",
+    "AVAX": "avalanche",
+    "LINK": "chainlink",
+    "DOT": "polkadot",
+    "MATIC": "polygon",
+    "LTC": "litecoin",
+    "BCH": "bitcoin-cash",
+    "ATOM": "cosmos",
+    "UNI": "uniswap",
+    "NEAR": "near-protocol",
+    "APT": "aptos",
+    "ARB": "arbitrum",
+    "OP": "optimism",
+    "SUI": "sui",
+    "PEPE": "pepe",
+    "SHIB": "shiba-inu",
+    "TRX": "tron",
+    "ETC": "ethereum-classic",
+    "XLM": "stellar",
+    "HBAR": "hedera",
+    "ICP": "internet-computer",
+    "FIL": "filecoin",
+    "INJ": "injective-protocol",
+    "RNDR": "render-token",
+    "TAO": "bittensor",
+    "IMX": "immutable-x",
+    "SEI": "sei-network",
+    "TIA": "celestia",
+    "JUP": "jupiter",
+    "PYTH": "pyth-network",
+    "BONK": "bonk",
+    "WIF": "dogwifcoin",
+    "FET": "fetch-ai",
+    "RUNE": "thorchain",
+    "AAVE": "aave",
+    "MKR": "maker",
+    "ALGO": "algorand",
+    "VET": "vechain",
+    "EGLD": "multiversx",
+    "THETA": "theta-token",
+    "SAND": "the-sandbox",
+    "MANA": "decentraland",
+    "AXS": "axie-infinity",
+    "GRT": "the-graph",
+    "FLOW": "flow",
+    "KAS": "kaspa",
+    "KAVA": "kava",
+    "DYDX": "dydx",
+    "WLD": "worldcoin-wld",
+    "ARKM": "arkham",
+    "STRK": "starknet",
+    "ENA": "ethena",
+    "ONDO": "ondo-finance",
+    "JASMY": "jasmycoin",
+    "LDO": "lido-dao",
+    "CRV": "curve-dao-token",
+    "SNX": "synthetix-network-token",
+    "COMP": "compound-governance-token",
+    "1INCH": "1inch",
+    "BAT": "basic-attention-token",
+    "ZEC": "zcash",
+    "DASH": "dash",
+    "CHZ": "chiliz",
+    "ROSE": "oasis-network",
+    "QTUM": "qtum",
+    "IOTA": "iota",
+    "ZIL": "zilliqa",
+    "KSM": "kusama",
+    "GMT": "stepn",
+    "BLUR": "blur",
+    "ACE": "fusionist",
+    "NEO": "neo",
+    "CFX": "conflux-token",
+    "FTM": "fantom",
+    "GALA": "gala",
+    "LRC": "loopring",
+    "ENS": "ethereum-name-service",
+    "SXP": "solar",
+    "HOT": "holotoken",
+    "ANKR": "ankr",
+    "ICX": "icon",
+    "SC": "siacoin",
+    "CKB": "nervos-network",
+    "MASK": "mask-network",
+    "YFI": "yearn-finance",
+    "WOO": "woo-network",
+    "SKL": "skale",
+}
+
+KRAKEN_PAIRS = {
+    "BTC": "XBTUSD",
+    "ETH": "ETHUSD",
+    "SOL": "SOLUSD",
+    "XRP": "XRPUSD",
+    "DOGE": "DOGEUSD",
+    "ADA": "ADAUSD",
+    "AVAX": "AVAXUSD",
+    "DOT": "DOTUSD",
+    "LINK": "LINKUSD",
+    "LTC": "LTCUSD",
+    "BCH": "BCHUSD",
+    "ATOM": "ATOMUSD",
+    "UNI": "UNIUSD",
+    "TRX": "TRXUSD",
+    "ETC": "ETCUSD",
+    "XLM": "XLMUSD",
+    "AAVE": "AAVEUSD",
+    "COMP": "COMPUSD",
+    "MKR": "MKRUSD",
+    "ZEC": "ZECUSD",
+    "DASH": "DASHUSD",
+    "KSM": "KSMUSD",
+}
+
+KRAKEN_OHLC_MAP = {
+    "BTC": "XXBTZUSD",
+    "ETH": "XETHZUSD",
+    "SOL": "SOLUSD",
+    "XRP": "XXRPZUSD",
+    "DOGE": "XDGUSD",
+    "ADA": "ADAUSD",
+    "AVAX": "AVAXUSD",
+    "DOT": "DOTUSD",
+    "LINK": "LINKUSD",
+    "LTC": "XLTCZUSD",
+    "BCH": "BCHUSD",
+    "ATOM": "ATOMUSD",
+    "UNI": "UNIUSD",
+    "TRX": "TRXUSD",
+    "ETC": "XETCZUSD",
+    "XLM": "XXLMZUSD",
+}
 
 
 def get_stock_logo(symbol):
@@ -780,15 +921,6 @@ class StripeManager:
 sm = StripeManager()
 
 
-def symbol_to_binance_pair(symbol):
-    s = symbol.upper()
-    if s in BINANCE_SYMBOLS:
-        return BINANCE_SYMBOLS[s]
-    if s.endswith("USDT"):
-        return s
-    return f"{s}USDT"
-
-
 def pct_change(a, b):
     if b in [0, None]:
         return 0.0
@@ -865,22 +997,45 @@ def render_candles_from_ohlc(candles, height=140):
 
 
 def fetch_crypto_candles(symbol, interval="15m", limit=60):
+    interval_map = {
+        "15m": 15,
+        "1h": 60,
+        "4h": 240,
+    }
+
+    pair = KRAKEN_OHLC_MAP.get(symbol.upper())
+    kraken_interval = interval_map.get(interval, 15)
+
+    if not pair:
+        return None
+
     try:
-        pair = symbol_to_binance_pair(symbol)
         r = requests.get(
-            "https://api.binance.com/api/v3/klines",
-            params={"symbol": pair, "interval": interval, "limit": limit},
-            timeout=12
+            "https://api.kraken.com/0/public/OHLC",
+            params={"pair": pair, "interval": kraken_interval},
+            timeout=REQUESTS_TIMEOUT
         )
         r.raise_for_status()
-        return [{
-            "open": float(row[1]),
-            "high": float(row[2]),
-            "low": float(row[3]),
-            "close": float(row[4])
-        } for row in r.json()]
+        payload = r.json()
+
+        if payload.get("error"):
+            raise Exception(str(payload["error"]))
+
+        result = payload.get("result", {})
+        rows = result.get(pair) or []
+
+        candles = []
+        for row in rows[-limit:]:
+            candles.append({
+                "open": float(row[1]),
+                "high": float(row[2]),
+                "low": float(row[3]),
+                "close": float(row[4])
+            })
+
+        return candles or None
     except Exception as e:
-        logger.warning(f"fetch_crypto_candles failed for {symbol}: {e}")
+        logger.warning(f"fetch_crypto_candles failed for {symbol} via Kraken: {e}")
         return None
 
 
@@ -1332,105 +1487,208 @@ def compute_light_signal(change):
     return "HOLD"
 
 
-def fetch_crypto_quotes_safe():
-    try:
+def fetch_crypto_from_coincap():
+    symbol_to_id = {s: COINCAP_IDS[s] for s, _ in CRYPTO_TOP_90 if s in COINCAP_IDS}
+    if not symbol_to_id:
+        return []
+
+    reverse_ids = {v: k for k, v in symbol_to_id.items()}
+    ids_needed = list(symbol_to_id.values())
+
+    results = []
+    chunk_size = 20
+
+    for i in range(0, len(ids_needed), chunk_size):
+        chunk = ids_needed[i:i + chunk_size]
         r = requests.get(
-            "https://api.binance.com/api/v3/ticker/24hr",
-            timeout=12
+            "https://api.coincap.io/v2/assets",
+            params={"ids": ",".join(chunk)},
+            timeout=REQUESTS_TIMEOUT
         )
         r.raise_for_status()
-        data = r.json()
-
-        payload = []
-        seen = set()
+        data = r.json().get("data", [])
 
         for item in data:
-            pair = (item.get("symbol") or "").upper()
-            if not pair.endswith("USDT"):
-                continue
-
-            base = pair[:-4]
-            if base not in CRYPTO_ALLOWED_SYMBOLS:
-                continue
-
-            if base in seen:
+            coincap_id = item.get("id", "")
+            symbol = reverse_ids.get(coincap_id)
+            if not symbol:
                 continue
 
             try:
-                price = float(item.get("lastPrice") or 0)
-                change = float(item.get("priceChangePercent") or 0)
+                price = float(item.get("priceUsd") or 0)
+                change = float(item.get("changePercent24Hr") or 0)
             except Exception:
                 continue
 
             if price <= 0:
                 continue
 
-            payload.append({
-                "symbol": base,
-                "name": CRYPTO_NAME_MAP.get(base, base),
+            results.append({
+                "symbol": symbol,
+                "name": CRYPTO_NAME_MAP.get(symbol, item.get("name") or symbol),
                 "price": price,
                 "change": change,
                 "dir": "up" if change >= 0 else "down",
                 "signal": compute_light_signal(change),
-                "logo": get_crypto_logo(base),
+                "logo": get_crypto_logo(symbol),
             })
-            seen.add(base)
 
-        payload_map = {item["symbol"]: item for item in payload}
-        ordered = [payload_map[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in payload_map]
-        return ordered
+        time.sleep(0.08)
 
-    except Exception as e:
-        logger.warning(f"fetch_crypto_quotes_safe failed (Binance only): {e}")
+    payload_map = {item["symbol"]: item for item in results}
+    ordered = [payload_map[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in payload_map]
+    return ordered
+
+
+def fetch_crypto_from_kraken():
+    if not KRAKEN_PAIRS:
         return []
+
+    reverse_pairs = {v: k for k, v in KRAKEN_PAIRS.items()}
+    pair_list = list(KRAKEN_PAIRS.values())
+    results = []
+    chunk_size = 15
+
+    for i in range(0, len(pair_list), chunk_size):
+        chunk = pair_list[i:i + chunk_size]
+        r = requests.get(
+            "https://api.kraken.com/0/public/Ticker",
+            params={"pair": ",".join(chunk)},
+            timeout=REQUESTS_TIMEOUT
+        )
+        r.raise_for_status()
+        payload = r.json()
+
+        if payload.get("error"):
+            raise Exception(str(payload["error"]))
+
+        raw = payload.get("result", {})
+        for result_key, value in raw.items():
+            symbol = None
+            for pair_code, sym in reverse_pairs.items():
+                if result_key == pair_code or pair_code in result_key:
+                    symbol = sym
+                    break
+
+            if not symbol:
+                continue
+
+            try:
+                price = float(value["c"][0])
+                open_price = float(value["o"])
+                change = pct_change(price, open_price)
+            except Exception:
+                continue
+
+            if price <= 0:
+                continue
+
+            results.append({
+                "symbol": symbol,
+                "name": CRYPTO_NAME_MAP.get(symbol, symbol),
+                "price": price,
+                "change": change,
+                "dir": "up" if change >= 0 else "down",
+                "signal": compute_light_signal(change),
+                "logo": get_crypto_logo(symbol),
+            })
+
+        time.sleep(0.08)
+
+    deduped = {}
+    for item in results:
+        deduped[item["symbol"]] = item
+
+    ordered = [deduped[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in deduped]
+    return ordered
+
+
+def fetch_crypto_quotes_safe():
+    try:
+        data = fetch_crypto_from_coincap()
+        if data:
+            return data
+    except Exception as e:
+        logger.warning(f"fetch_crypto_quotes_safe CoinCap failed: {e}")
+
+    try:
+        data = fetch_crypto_from_kraken()
+        if data:
+            return data
+    except Exception as e:
+        logger.warning(f"fetch_crypto_quotes_safe Kraken failed: {e}")
+
+    logger.warning("fetch_crypto_quotes_safe failed: all crypto providers unavailable")
+    return []
+
+
+def normalize_stock_symbol_for_finnhub(symbol):
+    mapping = {
+        "BRK-B": "BRK.B",
+    }
+    return mapping.get(symbol.upper(), symbol.upper())
+
+
+def fetch_stock_quotes_from_finnhub():
+    if not FINNHUB_API_KEY:
+        raise Exception("FINNHUB_API_KEY not set")
+
+    payload = []
+
+    for symbol, name in STOCK_UNIVERSE:
+        if "=" in symbol:
+            continue
+
+        api_symbol = normalize_stock_symbol_for_finnhub(symbol)
+
+        r = requests.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": api_symbol, "token": FINNHUB_API_KEY},
+            timeout=REQUESTS_TIMEOUT
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        current_price = data.get("c")
+        prev_close = data.get("pc")
+
+        if current_price in [None, 0]:
+            continue
+
+        try:
+            current_price = float(current_price)
+            prev_close = float(prev_close) if prev_close not in [None, 0] else current_price
+            change = pct_change(current_price, prev_close)
+        except Exception:
+            continue
+
+        payload.append({
+            "symbol": symbol,
+            "name": STOCK_NAME_MAP.get(symbol, name),
+            "price": current_price,
+            "change": change,
+            "dir": "up" if change >= 0 else "down",
+            "signal": compute_light_signal(change),
+            "logo": get_stock_logo(symbol),
+            "icon": get_asset_icon(symbol),
+        })
+
+        time.sleep(0.12)
+
+    return payload
 
 
 def fetch_stock_quotes_safe():
     try:
-        symbols = [s for s, _ in STOCK_UNIVERSE]
-        tickers = yf.Tickers(" ".join(symbols))
-        payload = []
-
-        for symbol in symbols:
-            ticker = tickers.tickers[symbol]
-            price = None
-            prev_close = None
-
-            try:
-                info = ticker.fast_info
-                price = info.get("lastPrice")
-                prev_close = info.get("previousClose")
-            except Exception:
-                pass
-
-            if price is None or prev_close in [None, 0]:
-                hist = ticker.history(period="2d", interval="1d")
-                if len(hist) >= 2:
-                    prev_close = float(hist["Close"].iloc[-2])
-                    price = float(hist["Close"].iloc[-1])
-                elif len(hist) == 1:
-                    price = float(hist["Close"].iloc[-1])
-                    prev_close = price
-
-            if price is None:
-                continue
-
-            change = pct_change(price, prev_close)
-            payload.append({
-                "symbol": symbol,
-                "name": STOCK_NAME_MAP.get(symbol, symbol),
-                "price": float(price),
-                "change": float(change),
-                "dir": "up" if change >= 0 else "down",
-                "signal": compute_light_signal(change),
-                "logo": get_stock_logo(symbol),
-                "icon": get_asset_icon(symbol),
-            })
-
+        payload = fetch_stock_quotes_from_finnhub()
+        existing = {x["symbol"] for x in payload}
+        for item in FALLBACK_STOCKS:
+            if item["symbol"] not in existing:
+                payload.append(dict(item))
         if len(payload) >= 10:
             return payload
     except Exception as e:
-        logger.warning(f"fetch_stock_quotes_safe failed: {e}")
+        logger.warning(f"fetch_stock_quotes_safe failed via Finnhub: {e}")
 
     return FALLBACK_STOCKS.copy()
 
@@ -1699,7 +1957,6 @@ def homepage_json_ld():
             }
         }
     ]
-
 
 def faq_json_ld(items):
     return {
@@ -2356,7 +2613,7 @@ def crypto():
     content = f"""
     <section class="section">
       <h1>Crypto</h1>
-      <p class="section-sub">Top Binance-listed crypto assets with live-updating previews and premium multi-timeframe detail pages.</p>
+      <p class="section-sub">Top crypto assets with live-updating previews and premium multi-timeframe detail pages.</p>
       <div id="live-updated-crypto" class="live-stamp">Last updated: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC</div>
 
       <div class="card" style="margin-bottom:24px;">
