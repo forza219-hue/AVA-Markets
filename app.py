@@ -1486,62 +1486,62 @@ def compute_light_signal(change):
         return "SELL"
     return "HOLD"
 
-
 def fetch_crypto_from_coingecko():
-    symbol_to_id = {s: COINGECKO_IDS[s] for s, _ in CRYPTO_TOP_90 if s in COINGECKO_IDS}
+    priority_symbols = [
+        "BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT",
+        "MATIC", "LTC", "BCH", "ATOM", "UNI", "NEAR", "APT", "ARB", "OP", "SUI",
+        "SHIB", "TRX", "ETC", "XLM", "HBAR", "ICP", "FIL", "INJ", "RNDR", "AAVE"
+    ]
+
+    symbol_to_id = {s: COINGECKO_IDS[s] for s in priority_symbols if s in COINGECKO_IDS}
     if not symbol_to_id:
         return []
 
     ids_needed = list(symbol_to_id.values())
     reverse_ids = {v: k for k, v in symbol_to_id.items()}
+
+    r = requests.get(
+        "https://api.coingecko.com/api/v3/coins/markets",
+        params={
+            "vs_currency": "usd",
+            "ids": ",".join(ids_needed),
+            "order": "market_cap_desc",
+            "per_page": len(ids_needed),
+            "page": 1,
+            "sparkline": "false",
+            "price_change_percentage": "24h"
+        },
+        timeout=REQUESTS_TIMEOUT,
+        headers={"accept": "application/json"}
+    )
+    r.raise_for_status()
+    data = r.json()
+
     results = []
-    chunk_size = 40
+    for item in data:
+        coin_id = item.get("id", "")
+        symbol = reverse_ids.get(coin_id)
+        if not symbol:
+            continue
 
-    for i in range(0, len(ids_needed), chunk_size):
-        chunk = ids_needed[i:i + chunk_size]
-        r = requests.get(
-            "https://api.coingecko.com/api/v3/coins/markets",
-            params={
-                "vs_currency": "usd",
-                "ids": ",".join(chunk),
-                "order": "market_cap_desc",
-                "per_page": len(chunk),
-                "page": 1,
-                "sparkline": "false",
-                "price_change_percentage": "24h"
-            },
-            timeout=REQUESTS_TIMEOUT,
-            headers={"accept": "application/json"}
-        )
-        r.raise_for_status()
-        data = r.json()
+        try:
+            price = float(item.get("current_price") or 0)
+            change = float(item.get("price_change_percentage_24h") or 0)
+        except Exception:
+            continue
 
-        for item in data:
-            coin_id = item.get("id", "")
-            symbol = reverse_ids.get(coin_id)
-            if not symbol:
-                continue
+        if price <= 0:
+            continue
 
-            try:
-                price = float(item.get("current_price") or 0)
-                change = float(item.get("price_change_percentage_24h") or 0)
-            except Exception:
-                continue
-
-            if price <= 0:
-                continue
-
-            results.append({
-                "symbol": symbol,
-                "name": CRYPTO_NAME_MAP.get(symbol, item.get("name") or symbol),
-                "price": price,
-                "change": change,
-                "dir": "up" if change >= 0 else "down",
-                "signal": compute_light_signal(change),
-                "logo": get_crypto_logo(symbol),
-            })
-
-        time.sleep(0.15)
+        results.append({
+            "symbol": symbol,
+            "name": CRYPTO_NAME_MAP.get(symbol, item.get("name") or symbol),
+            "price": price,
+            "change": change,
+            "dir": "up" if change >= 0 else "down",
+            "signal": compute_light_signal(change),
+            "logo": get_crypto_logo(symbol),
+        })
 
     payload_map = {item["symbol"]: item for item in results}
     ordered = [payload_map[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in payload_map]
