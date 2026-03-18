@@ -213,13 +213,104 @@ ul{color:var(--muted)}
 """
 
 
-FALLBACK_CRYPTO = [
-    {"symbol": "BTC", "name": "Bitcoin", "price": 117000.0, "change": 2.41, "dir": "up", "signal": "BUY", "logo": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png"},
-    {"symbol": "ETH", "name": "Ethereum", "price": 3482.40, "change": 1.83, "dir": "up", "signal": "BUY", "logo": "https://assets.coingecko.com/coins/images/279/large/ethereum.png"},
-    {"symbol": "SOL", "name": "Solana", "price": 192.11, "change": -0.64, "dir": "down", "signal": "HOLD", "logo": "https://assets.coingecko.com/coins/images/4128/large/solana.png"},
-    {"symbol": "BNB", "name": "BNB", "price": 621.19, "change": 0.92, "dir": "up", "signal": "BUY", "logo": "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png"},
-    {"symbol": "XRP", "name": "XRP", "price": 0.74, "change": -1.22, "dir": "down", "signal": "SELL", "logo": "https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png"},
+CRYPTO_TOP_90 = [
+    ("BTC", "Bitcoin"),
+    ("ETH", "Ethereum"),
+    ("BNB", "BNB"),
+    ("SOL", "Solana"),
+    ("XRP", "XRP"),
+    ("DOGE", "Dogecoin"),
+    ("ADA", "Cardano"),
+    ("AVAX", "Avalanche"),
+    ("LINK", "Chainlink"),
+    ("DOT", "Polkadot"),
+    ("MATIC", "Polygon"),
+    ("LTC", "Litecoin"),
+    ("BCH", "Bitcoin Cash"),
+    ("ATOM", "Cosmos"),
+    ("UNI", "Uniswap"),
+    ("NEAR", "NEAR Protocol"),
+    ("APT", "Aptos"),
+    ("ARB", "Arbitrum"),
+    ("OP", "Optimism"),
+    ("SUI", "Sui"),
+    ("PEPE", "Pepe"),
+    ("SHIB", "Shiba Inu"),
+    ("TRX", "TRON"),
+    ("ETC", "Ethereum Classic"),
+    ("XLM", "Stellar"),
+    ("HBAR", "Hedera"),
+    ("ICP", "Internet Computer"),
+    ("FIL", "Filecoin"),
+    ("INJ", "Injective"),
+    ("RNDR", "Render"),
+    ("TAO", "Bittensor"),
+    ("IMX", "Immutable"),
+    ("SEI", "Sei"),
+    ("TIA", "Celestia"),
+    ("JUP", "Jupiter"),
+    ("PYTH", "Pyth Network"),
+    ("BONK", "Bonk"),
+    ("WIF", "dogwifhat"),
+    ("FET", "Fetch.ai"),
+    ("RUNE", "THORChain"),
+    ("AAVE", "Aave"),
+    ("MKR", "Maker"),
+    ("ALGO", "Algorand"),
+    ("VET", "VeChain"),
+    ("EGLD", "MultiversX"),
+    ("THETA", "Theta Network"),
+    ("SAND", "The Sandbox"),
+    ("MANA", "Decentraland"),
+    ("AXS", "Axie Infinity"),
+    ("GRT", "The Graph"),
+    ("FLOW", "Flow"),
+    ("KAS", "Kaspa"),
+    ("KAVA", "Kava"),
+    ("DYDX", "dYdX"),
+    ("WLD", "Worldcoin"),
+    ("ARKM", "Arkham"),
+    ("STRK", "Starknet"),
+    ("ENA", "Ethena"),
+    ("ONDO", "Ondo"),
+    ("JASMY", "JasmyCoin"),
+    ("LDO", "Lido DAO"),
+    ("CRV", "Curve DAO Token"),
+    ("SNX", "Synthetix"),
+    ("COMP", "Compound"),
+    ("1INCH", "1inch"),
+    ("BAT", "Basic Attention Token"),
+    ("ZEC", "Zcash"),
+    ("DASH", "Dash"),
+    ("CHZ", "Chiliz"),
+    ("ROSE", "Oasis"),
+    ("QTUM", "Qtum"),
+    ("IOTA", "IOTA"),
+    ("ZIL", "Zilliqa"),
+    ("KSM", "Kusama"),
+    ("GMT", "STEPN"),
+    ("BLUR", "Blur"),
+    ("ACE", "Fusionist"),
+    ("NEO", "NEO"),
+    ("CFX", "Conflux"),
+    ("FTM", "Fantom"),
+    ("GALA", "Gala"),
+    ("LRC", "Loopring"),
+    ("ENS", "Ethereum Name Service"),
+    ("SXP", "Solar"),
+    ("HOT", "Holo"),
+    ("ANKR", "Ankr"),
+    ("ICX", "ICON"),
+    ("SC", "Siacoin"),
+    ("CKB", "Nervos Network"),
+    ("MASK", "Mask Network"),
+    ("YFI", "yearn.finance"),
+    ("WOO", "WOO"),
+    ("SKL", "SKALE"),
 ]
+
+CRYPTO_NAME_MAP = {symbol: name for symbol, name in CRYPTO_TOP_90}
+CRYPTO_ALLOWED_SYMBOLS = set(CRYPTO_NAME_MAP.keys())
 
 STOCK_UNIVERSE = [
     ("AAPL", "Apple"), ("MSFT", "Microsoft"), ("NVDA", "NVIDIA"), ("AMZN", "Amazon"),
@@ -258,10 +349,7 @@ STOCK_DOMAINS = {
     "QCOM": "qualcomm.com",
 }
 
-BINANCE_SYMBOLS = {
-    "BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT", "BNB": "BNBUSDT",
-    "XRP": "XRPUSDT", "DOGE": "DOGEUSDT", "ADA": "ADAUSDT", "AVAX": "AVAXUSDT",
-}
+BINANCE_SYMBOLS = {symbol: f"{symbol}USDT" for symbol, _ in CRYPTO_TOP_90}
 
 
 def get_stock_logo(symbol):
@@ -269,6 +357,10 @@ def get_stock_logo(symbol):
     if domain:
         return f"https://logo.clearbit.com/{domain}"
     return None
+
+
+def get_crypto_logo(symbol):
+    return f"https://cryptoicons.org/api/icon/{symbol.lower()}/200"
 
 
 def get_asset_icon(symbol):
@@ -787,7 +879,8 @@ def fetch_crypto_candles(symbol, interval="15m", limit=60):
             "low": float(row[3]),
             "close": float(row[4])
         } for row in r.json()]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"fetch_crypto_candles failed for {symbol}: {e}")
         return None
 
 
@@ -1242,42 +1335,54 @@ def compute_light_signal(change):
 def fetch_crypto_quotes_safe():
     try:
         r = requests.get(
-            "https://api.coingecko.com/api/v3/coins/markets",
-            params={
-                "vs_currency": "usd",
-                "order": "market_cap_desc",
-                "per_page": 100,
-                "page": 1,
-                "sparkline": "false",
-                "price_change_percentage": "24h"
-            },
+            "https://api.binance.com/api/v3/ticker/24hr",
             timeout=12
         )
         r.raise_for_status()
         data = r.json()
 
         payload = []
-        for item in data[:100]:
-            change = float(item.get("price_change_percentage_24h") or 0)
-            symbol = item.get("symbol", "").upper()
-            if not symbol:
+        seen = set()
+
+        for item in data:
+            pair = (item.get("symbol") or "").upper()
+            if not pair.endswith("USDT"):
                 continue
+
+            base = pair[:-4]
+            if base not in CRYPTO_ALLOWED_SYMBOLS:
+                continue
+
+            if base in seen:
+                continue
+
+            try:
+                price = float(item.get("lastPrice") or 0)
+                change = float(item.get("priceChangePercent") or 0)
+            except Exception:
+                continue
+
+            if price <= 0:
+                continue
+
             payload.append({
-                "symbol": symbol,
-                "name": item.get("name", symbol),
-                "price": float(item.get("current_price") or 0),
+                "symbol": base,
+                "name": CRYPTO_NAME_MAP.get(base, base),
+                "price": price,
                 "change": change,
                 "dir": "up" if change >= 0 else "down",
                 "signal": compute_light_signal(change),
-                "logo": item.get("image"),
+                "logo": get_crypto_logo(base),
             })
+            seen.add(base)
 
-        if len(payload) >= 20:
-            return payload
+        payload_map = {item["symbol"]: item for item in payload}
+        ordered = [payload_map[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in payload_map]
+        return ordered
+
     except Exception as e:
-        logger.warning(f"fetch_crypto_quotes_safe failed: {e}")
-
-    return FALLBACK_CRYPTO.copy()
+        logger.warning(f"fetch_crypto_quotes_safe failed (Binance only): {e}")
+        return []
 
 
 def fetch_stock_quotes_safe():
@@ -1332,7 +1437,7 @@ def fetch_stock_quotes_safe():
 
 def paginate(items, page, per_page):
     total = len(items)
-    pages = max(1, math.ceil(total / per_page))
+    pages = max(1, math.ceil(total / per_page)) if total > 0 else 1
     page = max(1, min(page, pages))
     start = (page - 1) * per_page
     end = start + per_page
@@ -1723,6 +1828,7 @@ setInterval(refreshDetail, {interval});
         """
     return ""
 
+
 def nav_layout(
     title,
     content,
@@ -1753,10 +1859,9 @@ def nav_layout(
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="google-site-verification" content="39xa6RndNqbrq7XCh_9JZQkWBoRKAJlghz8ieHcV2v4" />
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <meta name="google-site-verification" content="39xa6RndNqbrq7XCh_9JZQkWBoRKAJlghz8ieHcV2v4" />
 
   <title>{{ title }}</title>
   <meta name="description" content="{{ meta_description }}">
@@ -2028,15 +2133,35 @@ def home():
     crypto_list = fetch_crypto_quotes_safe()
     stock_list = fetch_stock_quotes_safe()
 
-    featured_crypto = dict(crypto_list[0])
-    featured_stock = dict(stock_list[0])
+    featured_crypto = dict(crypto_list[0]) if crypto_list else {
+        "symbol": "N/A",
+        "name": "Crypto data unavailable",
+        "price": 0.0,
+        "change": 0.0,
+        "dir": "down",
+        "signal": "HOLD",
+        "logo": None,
+    }
+    featured_stock = dict(stock_list[0]) if stock_list else {
+        "symbol": "AAPL",
+        "name": "Apple",
+        "price": 0.0,
+        "change": 0.0,
+        "dir": "up",
+        "signal": "HOLD",
+        "logo": get_stock_logo("AAPL"),
+        "icon": get_asset_icon("AAPL"),
+    }
 
     featured_crypto["price_display"] = fmt_price(featured_crypto["price"], featured_crypto["symbol"])
     featured_crypto["change_display"] = fmt_change(featured_crypto["change"])
     featured_stock["price_display"] = fmt_price(featured_stock["price"], featured_stock["symbol"])
     featured_stock["change_display"] = fmt_change(featured_stock["change"])
 
-    crypto_candles = fetch_crypto_candles(featured_crypto["symbol"], interval="15m", limit=40)
+    crypto_candles = None
+    if featured_crypto["symbol"] != "N/A":
+        crypto_candles = fetch_crypto_candles(featured_crypto["symbol"], interval="15m", limit=40)
+
     stock_candles = fetch_stock_candles(featured_stock["symbol"], period="3mo", interval="1d")
 
     content = render_template_string("""
@@ -2062,7 +2187,13 @@ def home():
             <img class="asset-feature-logo" src="{{ featured_crypto.logo }}" alt="{{ featured_crypto.symbol }}" onerror="this.style.display='none'">
           {% endif %}
           <div>
-            <h2 style="margin:0;"><a href="/crypto/{{ featured_crypto.symbol }}">{{ featured_crypto.symbol }}</a> — {{ featured_crypto.name }}</h2>
+            <h2 style="margin:0;">
+              {% if featured_crypto.symbol != "N/A" %}
+                <a href="/crypto/{{ featured_crypto.symbol }}">{{ featured_crypto.symbol }}</a> — {{ featured_crypto.name }}
+              {% else %}
+                {{ featured_crypto.name }}
+              {% endif %}
+            </h2>
             <div class="asset-subtitle">Top crypto market snapshot</div>
           </div>
         </div>
@@ -2071,10 +2202,12 @@ def home():
         </div>
         <p>Free preview shows lightweight market sentiment. Premium pages unlock multi-timeframe signals.</p>
         <div style="margin:16px 0 18px;">
-          {% if signals %}
+          {% if featured_crypto.symbol != "N/A" and signals %}
             <span class="signal {{ 'signal-buy' if featured_crypto.signal == 'BUY' else 'signal-hold' if featured_crypto.signal == 'HOLD' else 'signal-sell' }}">{{ featured_crypto.signal }}</span>
-          {% else %}
+          {% elif featured_crypto.symbol != "N/A" %}
             <span class="signal signal-locked">Signal Locked</span>
+          {% else %}
+            <span class="signal signal-locked">Unavailable</span>
           {% endif %}
         </div>
         <div class="candle-box">{{ crypto_candles|safe }}</div>
@@ -2188,10 +2321,7 @@ def crypto():
         assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
 
     if not assets:
-        assets = [dict(x) for x in FALLBACK_CRYPTO]
-        for a in assets:
-            a["price_display"] = fmt_price(a["price"], a["symbol"])
-            a["change_display"] = fmt_change(a["change"])
+        assets = []
 
     page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_CRYPTO)
     unlocked = can_access_signals()
@@ -2226,7 +2356,7 @@ def crypto():
     content = f"""
     <section class="section">
       <h1>Crypto</h1>
-      <p class="section-sub">Top crypto list with live-updating previews and premium multi-timeframe detail pages.</p>
+      <p class="section-sub">Top Binance-listed crypto assets with live-updating previews and premium multi-timeframe detail pages.</p>
       <div id="live-updated-crypto" class="live-stamp">Last updated: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC</div>
 
       <div class="card" style="margin-bottom:24px;">
@@ -2246,7 +2376,7 @@ def crypto():
       <div class="table-shell">
         <table class="market-table">
           <tr><th>Asset</th><th>Price</th><th>24h</th><th>Preview Signal</th><th>Access</th></tr>
-          {rows}
+          {rows or "<tr><td colspan='5'>No crypto data available right now.</td></tr>"}
         </table>
       </div>
 
