@@ -822,18 +822,6 @@ def get_int_arg(name, default=1, min_value=1, max_value=100000):
     return max(min_value, min(max_value, val))
 
 
-def safe_redirect_target(default="/dashboard"):
-    ref = request.referrer or ""
-    if not ref: return default
-    try:
-        parsed_ref = urlparse(ref)
-        if parsed_ref.netloc and parsed_ref.netloc != urlparse(Config.DOMAIN).netloc: return default
-        path = parsed_ref.path or default
-        if not path.startswith("/"): return default
-        if parsed_ref.query: path = f"{path}?{parsed_ref.query}"
-        return path
-    except: return default
-
 def fallback_candles_html(seed=1):
     random.seed(seed)
     bars = []
@@ -855,7 +843,6 @@ def fallback_candles_html(seed=1):
         """)
     html_parts.append("</div>")
     return "".join(html_parts)
-
 
 def render_candles_from_ohlc(candles, height=140):
     if not candles: return fallback_candles_html()
@@ -1129,6 +1116,7 @@ def compute_light_signal(change):
     if change <= -2.0: return "SELL"
     return "HOLD"
 
+
 MEM_CACHE = {}
 
 def get_cached_payload(cache_key, ttl_seconds):
@@ -1231,6 +1219,7 @@ def fetch_crypto_quotes_safe(force_refresh=False):
         for yf_sym, original_sym in symbols_map.items():
             try:
                 df = data[yf_sym] if len(symbols_map) > 1 else data
+                # Fill missing weekend gaps
                 series = df['Close'].ffill().dropna()
                 
                 if len(series) < 1: continue
@@ -1275,6 +1264,7 @@ def fetch_stock_quotes_safe(force_refresh=False):
         for symbol, name in STOCK_UNIVERSE:
             try:
                 df = data[symbol] if len(symbols) > 1 else data
+                # Fill missing weekend gaps for Gold/Oil/Stocks
                 series = df['Close'].ffill().dropna()
                 
                 if len(series) < 1: continue
@@ -1645,8 +1635,8 @@ def crypto():
     
     rows = ""
     for a in page_items:
-        # Fallback to pure Emoji if icon is broken
-        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=\'<span class=\\\'asset-icon\\\'>{h(a.get("icon","₿"))}</span>\'">'
+        fallback_html = f"<span class='asset-icon'>{h(a.get('icon','₿'))}</span>"
+        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=`{fallback_html}`">'
         rows += f"""
         <tr>
           <td class="asset-name">
@@ -1692,8 +1682,8 @@ def stocks():
     rows = ""
     for a in page_items:
         safe_id = h(a["symbol"].replace("=", "_"))
-        # Fallback to Gold/Oil/Stock emoji if Clearbit logo is broken
-        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=\'<span class=\\\'asset-icon\\\'>{h(a.get("icon","📈"))}</span>\'">'
+        fallback_html = f"<span class='asset-icon'>{h(a.get('icon','📈'))}</span>"
+        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=`{fallback_html}`">'
         
         rows += f"""
         <tr>
