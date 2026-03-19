@@ -3,23 +3,35 @@ import os
 import json
 import time
 import math
+import html
 import sqlite3
 import secrets
 import bcrypt
 import logging
 import random
+import threading
 import requests
 import yfinance as yf
+
 from datetime import datetime, timedelta
 from functools import wraps
+from urllib.parse import urlparse, quote_plus
 
 from dotenv import load_dotenv
 from flask import Flask, request, redirect, make_response, render_template_string, g, jsonify, abort
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 try:
     import stripe
 except Exception:
     stripe = None
+
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+except Exception:
+    Limiter = None
+    get_remote_address = None
 
 load_dotenv()
 
@@ -34,28 +46,50 @@ class Config:
     HOST = "0.0.0.0"
     PORT = int(os.environ.get("PORT", 5000))
     DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
-    DATABASE = os.environ.get("DATABASE_URL", "ava_markets_core.db")
-    SECRET_KEY = os.environ.get("SECRET_KEY", secrets.token_hex(32))
-    DOMAIN = os.environ.get("DOMAIN", f"http://localhost:{PORT}")
 
-    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
-    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    # SQLite path only in this file. If you migrate to Postgres, swap DB layer first.
+    DATABASE = os.environ.get("DATABASE_URL", "ava_markets_core.db").strip()
 
-    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin").strip()
-    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "AvaAdmin2024!").strip()
+    SECRET_KEY = os.environ.get("SECRET_KEY", "").strip()
+    DOMAIN = os.environ.get("DOMAIN", "").strip().rstrip("/")
 
-    CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "hello@avamarkets.com")
+    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+
+    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "").strip()
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "").strip()
+
+    CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "hello@avamarkets.com").strip()
 
     REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "12"))
     FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "").strip()
     TWELVEDATA_API_KEY = os.environ.get("TWELVEDATA_API_KEY", "").strip()
 
-    CRYPTO_CACHE_TTL = int(os.environ.get("CRYPTO_CACHE_TTL", "300"))   # 5 min
-    STOCK_CACHE_TTL = int(os.environ.get("STOCK_CACHE_TTL", "600"))     # 10 min
+    CRYPTO_CACHE_TTL = int(os.environ.get("CRYPTO_CACHE_TTL", "300"))
+    STOCK_CACHE_TTL = int(os.environ.get("STOCK_CACHE_TTL", "600"))
     DETAIL_CACHE_TTL = int(os.environ.get("DETAIL_CACHE_TTL", "300"))
 
     PAGE_SIZE_CRYPTO = 25
     PAGE_SIZE_STOCKS = 20
+
+    COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true" if not DEBUG else "false").lower() == "true"
+
+    ENABLE_BACKGROUND_REFRESH = os.environ.get("ENABLE_BACKGROUND_REFRESH", "true").lower() == "true"
+    BACKGROUND_REFRESH_SECONDS = int(os.environ.get("BACKGROUND_REFRESH_SECONDS", "180"))
+    BACKGROUND_REFRESH_LEADER = os.environ.get("BACKGROUND_REFRESH_LEADER", "true").lower() == "true"
+
+    DETAIL_WARM_CRYPTO = [
+        s.strip().upper() for s in os.environ.get(
+            "DETAIL_WARM_CRYPTO", "BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK"
+        ).split(",") if s.strip()
+    ]
+    DETAIL_WARM_STOCKS = [
+        s.strip().upper() for s in os.environ.get(
+            "DETAIL_WARM_STOCKS", "AAPL,MSFT,NVDA,AMZN,GOOGL,TSLA,GC=F,CL=F"
+        ).split(",") if s.strip()
+    ]
+
+    RATE_LIMIT_STORAGE_URI = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory://")
 
     TIERS = {
         "free": {"price": 0},
@@ -66,11 +100,61 @@ class Config:
     }
 
 
+def validate_runtime_config():
+    missing = []
+
+    for key in ["SECRET_KEY", "DOMAIN", "ADMIN_USERNAME", "ADMIN_PASSWORD"]:
+        if not getattr(Config, key, ""):
+            missing.append(key)
+
+    if Config.STRIPE_SECRET_KEY and not Config.STRIPE_WEBHOOK_SECRET:
+        missing.append("STRIPE_WEBHOOK_SECRET")
+
+    if missing:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
+    if Config.DATABASE.startswith(("postgres://", "postgresql://")):
+        raise RuntimeError(
+            "This file currently uses sqlite3 + WAL hardening. "
+            "If you want PostgreSQL, migrate the DB layer first."
+        )
+
+    if not Config.DOMAIN.startswith(("https://", "http://")):
+        raise RuntimeError("DOMAIN must include protocol, e.g. https://yourdomain.com")
+
+    if not Config.DEBUG and Config.DOMAIN.startswith("http://"):
+        logger.warning("DOMAIN is using http:// in non-debug mode. Prefer https:// in production.")
+
+    logger.info("Config validated. SQLite WAL mode will be enabled.")
+    logger.info("Postgres migration plan: move users/sessions/payments/watchlists/signal_* and market_cache first.")
+
+
+validate_runtime_config()
+
 if stripe and Config.STRIPE_SECRET_KEY:
     stripe.api_key = Config.STRIPE_SECRET_KEY
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["SECRET_KEY"] = Config.SECRET_KEY
+
+
+if Limiter:
+    limiter = Limiter(
+        key_func=get_remote_address,
+        app=app,
+        storage_uri=Config.RATE_LIMIT_STORAGE_URI,
+        default_limits=["240 per hour", "20 per minute"]
+    )
+else:
+    logger.warning("Flask-Limiter not installed; rate limiting is disabled.")
+
+    class _NoopLimiter:
+        def limit(self, *args, **kwargs):
+            def deco(fn):
+                return fn
+            return deco
+    limiter = _NoopLimiter()
 
 
 CSS = """
@@ -290,27 +374,28 @@ KRAKEN_OHLC_MAP = {
 }
 
 
+def h(value):
+    return html.escape("" if value is None else str(value), quote=True)
+
+
+def safe_query_value(value):
+    return quote_plus("" if value is None else str(value))
+
+
 def get_stock_logo(symbol):
     domain = STOCK_DOMAINS.get(symbol.upper())
     return f"https://logo.clearbit.com/{domain}" if domain else None
 
 
-def get_crypto_logo(symbol):
+def get_crypto_logo(symbol, provider_logo=None):
+    if provider_logo:
+        return provider_logo
     return f"https://cryptoicons.org/api/icon/{symbol.lower()}/200"
 
 
 def get_asset_icon(symbol):
     mapping = {"GC=F": "🥇", "SI=F": "🥈", "PL=F": "🔘", "CL=F": "🛢️", "SIG": "💎"}
     return mapping.get(symbol.upper(), "📈")
-
-
-FALLBACK_STOCKS = [
-    {"symbol": "AAPL", "name": "Apple", "price": 211.42, "change": 1.12, "dir": "up", "signal": "BUY", "logo": get_stock_logo("AAPL"), "icon": get_asset_icon("AAPL")},
-    {"symbol": "MSFT", "name": "Microsoft", "price": 428.36, "change": 0.73, "dir": "up", "signal": "BUY", "logo": get_stock_logo("MSFT"), "icon": get_asset_icon("MSFT")},
-    {"symbol": "NVDA", "name": "NVIDIA", "price": 924.80, "change": 2.09, "dir": "up", "signal": "BUY", "logo": get_stock_logo("NVDA"), "icon": get_asset_icon("NVDA")},
-    {"symbol": "GC=F", "name": "Gold Futures", "price": 2345.20, "change": 0.35, "dir": "up", "signal": "HOLD", "logo": None, "icon": get_asset_icon("GC=F")},
-    {"symbol": "CL=F", "name": "Oil Futures", "price": 81.12, "change": -0.72, "dir": "down", "signal": "SELL", "logo": None, "icon": get_asset_icon("CL=F")},
-]
 
 
 class Database:
@@ -321,6 +406,10 @@ class Database:
     def conn(self):
         c = sqlite3.connect(self.path, check_same_thread=False)
         c.row_factory = sqlite3.Row
+        c.execute("PRAGMA journal_mode=WAL;")
+        c.execute("PRAGMA synchronous=NORMAL;")
+        c.execute("PRAGMA foreign_keys=ON;")
+        c.execute("PRAGMA busy_timeout=5000;")
         return c
 
     def init(self):
@@ -342,6 +431,13 @@ class Database:
             token TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
             expires_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS admin_sessions (
+            token TEXT PRIMARY KEY,
+            expires_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -352,7 +448,8 @@ class Database:
             payment_id TEXT,
             amount REAL,
             status TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS watchlists (
@@ -361,7 +458,8 @@ class Database:
             asset_type TEXT NOT NULL,
             symbol TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, asset_type, symbol)
+            UNIQUE(user_id, asset_type, symbol),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS signal_snapshots (
@@ -390,7 +488,8 @@ class Database:
             return_pct REAL,
             outcome TEXT,
             evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(snapshot_id, horizon)
+            UNIQUE(snapshot_id, horizon),
+            FOREIGN KEY(snapshot_id) REFERENCES signal_snapshots(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS signal_changes (
@@ -409,6 +508,15 @@ class Database:
             payload_json TEXT NOT NULL,
             updated_at INTEGER NOT NULL
         );
+
+        CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+        CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_watchlists_user_id ON watchlists(user_id);
+        CREATE INDEX IF NOT EXISTS idx_signal_snapshots_lookup ON signal_snapshots(asset_type, symbol, timeframe, signal_type, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_signal_snapshots_created_at ON signal_snapshots(created_at);
+        CREATE INDEX IF NOT EXISTS idx_signal_outcomes_snapshot_horizon ON signal_outcomes(snapshot_id, horizon);
+        CREATE INDEX IF NOT EXISTS idx_signal_changes_lookup ON signal_changes(asset_type, symbol, timeframe, signal_type, id DESC);
         """)
         c.commit()
         c.close()
@@ -442,7 +550,7 @@ class Database:
 
     def create_session(self, user_id, days=30):
         token = secrets.token_hex(32)
-        expires_at = datetime.now() + timedelta(days=days)
+        expires_at = datetime.utcnow() + timedelta(days=days)
         c = self.conn()
         c.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", (token, user_id, expires_at))
         c.commit()
@@ -457,7 +565,7 @@ class Database:
             SELECT u.* FROM users u
             JOIN sessions s ON s.user_id = u.id
             WHERE s.token = ? AND (s.expires_at IS NULL OR s.expires_at > ?)
-        """, (token, datetime.now())).fetchone()
+        """, (token, datetime.utcnow())).fetchone()
         c.close()
         return dict(row) if row else None
 
@@ -467,14 +575,49 @@ class Database:
         c.commit()
         c.close()
 
+    def create_admin_session(self, hours=12):
+        token = secrets.token_hex(32)
+        expires_at = datetime.utcnow() + timedelta(hours=hours)
+        c = self.conn()
+        c.execute("INSERT INTO admin_sessions (token, expires_at) VALUES (?, ?)", (token, expires_at))
+        c.commit()
+        c.close()
+        return token
+
+    def get_admin_session(self, token):
+        if not token:
+            return None
+        c = self.conn()
+        row = c.execute("""
+            SELECT token, expires_at, created_at
+            FROM admin_sessions
+            WHERE token = ? AND (expires_at IS NULL OR expires_at > ?)
+        """, (token, datetime.utcnow())).fetchone()
+        c.close()
+        return dict(row) if row else None
+
+    def delete_admin_session(self, token):
+        c = self.conn()
+        c.execute("DELETE FROM admin_sessions WHERE token = ?", (token,))
+        c.commit()
+        c.close()
+
     def update_user(self, user_id, **kwargs):
         if not kwargs:
             return
+        allowed = {
+            "tier", "stripe_customer_id", "stripe_subscription_id",
+            "subscription_status", "api_key", "password_hash"
+        }
         fields = []
         values = []
         for k, v in kwargs.items():
+            if k not in allowed:
+                continue
             fields.append(f"{k} = ?")
             values.append(v)
+        if not fields:
+            return
         values.append(user_id)
         c = self.conn()
         c.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
@@ -597,21 +740,6 @@ class Database:
         c.close()
         return [dict(r) for r in rows]
 
-    def get_open_outcomes(self, limit=250):
-        c = self.conn()
-        rows = c.execute("""
-            SELECT s.*
-            FROM signal_snapshots s
-            WHERE NOT EXISTS (
-                SELECT 1 FROM signal_outcomes o
-                WHERE o.snapshot_id = s.id AND o.horizon = '24h'
-            )
-            ORDER BY s.id DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
-        c.close()
-        return [dict(r) for r in rows]
-
     def insert_signal_outcome(self, snapshot_id, horizon, price_after, return_pct, outcome):
         c = self.conn()
         c.execute("""
@@ -621,6 +749,29 @@ class Database:
         """, (snapshot_id, horizon, price_after, return_pct, outcome))
         c.commit()
         c.close()
+
+    def outcome_exists(self, snapshot_id, horizon):
+        c = self.conn()
+        row = c.execute("""
+            SELECT 1
+            FROM signal_outcomes
+            WHERE snapshot_id = ? AND horizon = ?
+            LIMIT 1
+        """, (snapshot_id, horizon)).fetchone()
+        c.close()
+        return bool(row)
+
+    def get_recent_snapshots_for_outcomes(self, days=10, limit=500):
+        c = self.conn()
+        rows = c.execute("""
+            SELECT *
+            FROM signal_snapshots
+            WHERE created_at >= datetime('now', ?)
+            ORDER BY id DESC
+            LIMIT ?
+        """, (f"-{int(days)} days", limit)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
 
     def get_performance_summary(self, days=30):
         c = self.conn()
@@ -653,6 +804,7 @@ class Database:
                 prev_factors = json.loads(prev.get("factors_json") or "[]")
             except Exception:
                 pass
+
             prev_raw = json.dumps({
                 "signal": prev.get("signal"),
                 "confidence": round(float(prev.get("confidence") or 0), 4),
@@ -724,6 +876,14 @@ class Database:
         c.commit()
         c.close()
 
+    def purge_expired_rows(self):
+        c = self.conn()
+        c.execute("DELETE FROM sessions WHERE expires_at IS NOT NULL AND expires_at <= ?", (datetime.utcnow(),))
+        c.execute("DELETE FROM admin_sessions WHERE expires_at IS NOT NULL AND expires_at <= ?", (datetime.utcnow(),))
+        c.execute("DELETE FROM market_cache WHERE updated_at < ?", (int(time.time()) - (86400 * 14),))
+        c.commit()
+        c.close()
+
 
 db = Database(Config.DATABASE)
 
@@ -733,13 +893,16 @@ class StripeManager:
     def create_checkout(user_id, email, tier, success_url, cancel_url):
         if not stripe or not Config.STRIPE_SECRET_KEY:
             return None
+
         prices = {"basic": 900, "pro": 2900, "elite": 7900}
         if tier not in prices:
             return None
+
         try:
             return stripe.checkout.Session.create(
                 payment_method_types=["card"],
                 customer_email=email,
+                client_reference_id=str(user_id),
                 line_items=[{
                     "price_data": {
                         "currency": "usd",
@@ -790,6 +953,34 @@ def fmt_change(v):
     return f"{v:+.2f}%"
 
 
+def get_int_arg(name, default=1, min_value=1, max_value=100000):
+    raw = request.args.get(name, default)
+    try:
+        val = int(raw)
+    except Exception:
+        val = default
+    return max(min_value, min(max_value, val))
+
+
+def safe_redirect_target(default="/dashboard"):
+    ref = request.referrer or ""
+    if not ref:
+        return default
+    try:
+        parsed_ref = urlparse(ref)
+        parsed_base = urlparse(Config.DOMAIN)
+        if parsed_ref.netloc and parsed_ref.netloc != parsed_base.netloc:
+            return default
+        path = parsed_ref.path or default
+        if not path.startswith("/"):
+            return default
+        if parsed_ref.query:
+            path = f"{path}?{parsed_ref.query}"
+        return path
+    except Exception:
+        return default
+
+
 def fallback_candles_html(seed=1):
     random.seed(seed)
     bars = []
@@ -801,16 +992,16 @@ def fallback_candles_html(seed=1):
         top = max(8, min(65, top + random.randint(-8, 8)))
         bars.append({"wick": wick, "top": top, "height": height, "color": color})
 
-    html = ['<div class="candles">']
+    html_parts = ['<div class="candles">']
     for b in bars:
-        html.append(f"""
+        html_parts.append(f"""
         <div class="candle">
           <div class="wick" style="top:0;height:{b['wick']}px;"></div>
           <div class="body {b['color']}" style="top:{b['top']}px;height:{b['height']}px;"></div>
         </div>
         """)
-    html.append("</div>")
-    return "".join(html)
+    html_parts.append("</div>")
+    return "".join(html_parts)
 
 
 def render_candles_from_ohlc(candles, height=140):
@@ -824,7 +1015,7 @@ def render_candles_from_ohlc(candles, height=140):
     min_low = min(lows)
     span = max(max_high - min_low, 1e-9)
 
-    html = ['<div class="candles">']
+    html_parts = ['<div class="candles">']
     for c in sample:
         high_y = (max_high - c["high"]) / span * height
         low_y = (max_high - c["low"]) / span * height
@@ -837,17 +1028,24 @@ def render_candles_from_ohlc(candles, height=140):
         wick_height = max(low_y - high_y, body_height + 6)
         color = "green" if c["close"] >= c["open"] else "red"
 
-        html.append(f"""
+        html_parts.append(f"""
         <div class="candle">
           <div class="wick" style="top:{wick_top:.1f}px;height:{wick_height:.1f}px;"></div>
           <div class="body {color}" style="top:{body_top:.1f}px;height:{body_height:.1f}px;"></div>
         </div>
         """)
-    html.append("</div>")
-    return "".join(html)
+    html_parts.append("</div>")
+    return "".join(html_parts)
 
 
-def fetch_crypto_candles(symbol, interval="15m", limit=60):
+def normalize_dt_to_ts(value):
+    try:
+        return int(value.timestamp())
+    except Exception:
+        return None
+
+
+def fetch_crypto_candles_kraken(symbol, interval="15m", limit=80):
     interval_map = {"15m": 15, "1h": 60, "4h": 240}
     pair = KRAKEN_OHLC_MAP.get(symbol.upper())
     if not pair:
@@ -870,6 +1068,7 @@ def fetch_crypto_candles(symbol, interval="15m", limit=60):
         candles = []
         for row in rows[-limit:]:
             candles.append({
+                "ts": int(float(row[0])),
                 "open": float(row[1]),
                 "high": float(row[2]),
                 "low": float(row[3]),
@@ -877,20 +1076,64 @@ def fetch_crypto_candles(symbol, interval="15m", limit=60):
             })
         return candles or None
     except Exception as e:
-        logger.warning(f"fetch_crypto_candles failed for {symbol}: {e}")
+        logger.warning(f"fetch_crypto_candles_kraken failed for {symbol}: {e}")
         return None
+
+
+def fetch_crypto_candles_kucoin(symbol, interval="15m", limit=80):
+    tf_map = {"15m": "15min", "1h": "1hour", "4h": "4hour"}
+    market = f"{symbol.upper()}-USDT"
+    try:
+        r = requests.get(
+            "https://api.kucoin.com/api/v1/market/candles",
+            params={"type": tf_map.get(interval, "15min"), "symbol": market},
+            timeout=Config.REQUESTS_TIMEOUT
+        )
+        r.raise_for_status()
+        payload = r.json()
+        data = payload.get("data") or []
+        candles = []
+        for row in data[:limit]:
+            candles.append({
+                "ts": int(row[0]),
+                "open": float(row[1]),
+                "close": float(row[2]),
+                "high": float(row[3]),
+                "low": float(row[4]),
+            })
+        candles = sorted(candles, key=lambda x: x["ts"])
+        normalized = [{
+            "ts": c["ts"],
+            "open": c["open"],
+            "high": c["high"],
+            "low": c["low"],
+            "close": c["close"]
+        } for c in candles]
+        return normalized or None
+    except Exception as e:
+        logger.warning(f"fetch_crypto_candles_kucoin failed for {symbol}: {e}")
+        return None
+
+
+def fetch_crypto_candles(symbol, interval="15m", limit=80):
+    return (
+        fetch_crypto_candles_kraken(symbol, interval=interval, limit=limit)
+        or fetch_crypto_candles_kucoin(symbol, interval=interval, limit=limit)
+    )
 
 
 def fetch_stock_candles(symbol, period="6mo", interval="1d"):
     try:
         ticker = yf.Ticker(symbol.upper())
-        hist = ticker.history(period=period, interval=interval)
+        hist = ticker.history(period=period, interval=interval, auto_adjust=False)
         if hist is None or hist.empty:
-            hist = ticker.history(period="1y", interval="1d")
+            return None
 
         candles = []
-        for _, row in hist.tail(60).iterrows():
+        for idx, row in hist.tail(120).iterrows():
+            ts = normalize_dt_to_ts(idx.to_pydatetime()) or int(time.time())
             candles.append({
+                "ts": ts,
                 "open": float(row["Open"]),
                 "high": float(row["High"]),
                 "low": float(row["Low"]),
@@ -903,9 +1146,9 @@ def fetch_stock_candles(symbol, period="6mo", interval="1d"):
 
 def fetch_crypto_multi_timeframe(symbol):
     return {
-        "15m": fetch_crypto_candles(symbol, interval="15m", limit=80),
-        "1h": fetch_crypto_candles(symbol, interval="1h", limit=80),
-        "4h": fetch_crypto_candles(symbol, interval="4h", limit=80),
+        "15m": fetch_crypto_candles(symbol, interval="15m", limit=100),
+        "1h": fetch_crypto_candles(symbol, interval="1h", limit=100),
+        "4h": fetch_crypto_candles(symbol, interval="4h", limit=100),
     }
 
 
@@ -949,10 +1192,10 @@ def compute_atr(candles, period=14):
         return 0.0
     trs = []
     for i in range(1, len(candles)):
-        h = candles[i]["high"]
-        l = candles[i]["low"]
+        h_ = candles[i]["high"]
+        l_ = candles[i]["low"]
         pc = candles[i - 1]["close"]
-        tr = max(h - l, abs(h - pc), abs(l - pc))
+        tr = max(h_ - l_, abs(h_ - pc), abs(l_ - pc))
         trs.append(tr)
     if not trs:
         return 0.0
@@ -983,6 +1226,7 @@ def compute_bollinger(closes, period=20, std_mult=2):
     lower = mean - std_mult * std
     bandwidth = ((upper - lower) / mean) if mean else 0.0
     return {"mid": mean, "upper": upper, "lower": lower, "bandwidth": bandwidth}
+
 
 def confidence_label(conf):
     pct = conf * 100
@@ -1328,10 +1572,7 @@ def compute_light_signal(change):
     return "HOLD"
 
 
-MEM_CACHE = {
-    "crypto_list": {"data": None, "updated_at": 0},
-    "stock_list": {"data": None, "updated_at": 0},
-}
+MEM_CACHE = {}
 
 
 def get_cached_payload(cache_key, ttl_seconds):
@@ -1359,8 +1600,24 @@ def get_stale_payload(cache_key):
     mem = MEM_CACHE.get(cache_key)
     if mem and mem["data"] is not None:
         return mem["data"]
-
     return db.cache_get_stale(cache_key)
+
+
+def merge_ordered_assets(provider_lists, ordered_universe):
+    merged = {}
+    for plist in provider_lists:
+        for item in plist or []:
+            sym = (item.get("symbol") or "").upper()
+            if not sym:
+                continue
+            if sym not in merged:
+                merged[sym] = dict(item)
+            else:
+                for k, v in item.items():
+                    if merged[sym].get(k) in [None, "", []] and v not in [None, "", []]:
+                        merged[sym][k] = v
+
+    return [merged[symbol] for symbol, _ in ordered_universe if symbol in merged]
 
 
 def fetch_crypto_from_coingecko():
@@ -1400,16 +1657,13 @@ def fetch_crypto_from_coingecko():
         symbol = reverse_ids.get(coin_id)
         if not symbol:
             continue
-
         try:
             price = float(item.get("current_price") or 0)
             change = float(item.get("price_change_percentage_24h") or 0)
         except Exception:
             continue
-
         if price <= 0:
             continue
-
         results.append({
             "symbol": symbol,
             "name": CRYPTO_NAME_MAP.get(symbol, item.get("name") or symbol),
@@ -1417,17 +1671,13 @@ def fetch_crypto_from_coingecko():
             "change": change,
             "dir": "up" if change >= 0 else "down",
             "signal": compute_light_signal(change),
-            "logo": get_crypto_logo(symbol),
+            "logo": get_crypto_logo(symbol, item.get("image"))
         })
-
-    payload_map = {item["symbol"]: item for item in results}
-    ordered = [payload_map[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in payload_map]
-    return ordered
+    return results
 
 
 def fetch_crypto_from_kraken():
     results = []
-
     for symbol, pair_code in KRAKEN_PAIRS.items():
         try:
             r = requests.get(
@@ -1439,7 +1689,6 @@ def fetch_crypto_from_kraken():
             payload = r.json()
 
             if payload.get("error"):
-                logger.warning(f"Kraken pair failed for {symbol}: {payload['error']}")
                 continue
 
             raw = payload.get("result", {})
@@ -1463,15 +1712,54 @@ def fetch_crypto_from_kraken():
                 "signal": compute_light_signal(change),
                 "logo": get_crypto_logo(symbol),
             })
-
-            time.sleep(0.1)
-
+            time.sleep(0.06)
         except Exception as e:
             logger.warning(f"Kraken fetch failed for {symbol}: {e}")
+    return results
 
-    payload_map = {item["symbol"]: item for item in results}
-    ordered = [payload_map[symbol] for symbol, _ in CRYPTO_TOP_90 if symbol in payload_map]
-    return ordered
+
+def fetch_crypto_from_kucoin():
+    try:
+        r = requests.get(
+            "https://api.kucoin.com/api/v1/market/allTickers",
+            timeout=Config.REQUESTS_TIMEOUT
+        )
+        r.raise_for_status()
+        payload = r.json()
+        items = payload.get("data", {}).get("ticker", []) or []
+
+        market_map = {}
+        for item in items:
+            sym_name = (item.get("symbol") or "").upper()
+            if sym_name.endswith("-USDT"):
+                base = sym_name.split("-")[0]
+                market_map[base] = item
+
+        results = []
+        for symbol, _name in CRYPTO_TOP_90:
+            item = market_map.get(symbol)
+            if not item:
+                continue
+            try:
+                price = float(item.get("last") or 0)
+                change_rate = float(item.get("changeRate") or 0) * 100.0
+            except Exception:
+                continue
+            if price <= 0:
+                continue
+            results.append({
+                "symbol": symbol,
+                "name": CRYPTO_NAME_MAP.get(symbol, symbol),
+                "price": price,
+                "change": change_rate,
+                "dir": "up" if change_rate >= 0 else "down",
+                "signal": compute_light_signal(change_rate),
+                "logo": get_crypto_logo(symbol),
+            })
+        return results
+    except Exception as e:
+        logger.warning(f"KuCoin fetch failed: {e}")
+        return []
 
 
 def fetch_crypto_quotes_safe(force_refresh=False):
@@ -1482,25 +1770,37 @@ def fetch_crypto_quotes_safe(force_refresh=False):
         if cached is not None:
             return cached
 
-    try:
-        data = fetch_crypto_from_coingecko()
-        if data:
-            set_cached_payload(cache_key, data)
-            return data
-    except Exception as e:
-        logger.warning(f"fetch_crypto_quotes_safe CoinGecko failed: {e}")
+    provider_lists = []
 
     try:
-        data = fetch_crypto_from_kraken()
-        if data:
-            set_cached_payload(cache_key, data)
-            return data
+        cg = fetch_crypto_from_coingecko()
+        if cg:
+            provider_lists.append(cg)
     except Exception as e:
-        logger.warning(f"fetch_crypto_quotes_safe Kraken failed: {e}")
+        logger.warning(f"CoinGecko failed: {e}")
+
+    try:
+        kr = fetch_crypto_from_kraken()
+        if kr:
+            provider_lists.append(kr)
+    except Exception as e:
+        logger.warning(f"Kraken failed: {e}")
+
+    try:
+        kc = fetch_crypto_from_kucoin()
+        if kc:
+            provider_lists.append(kc)
+    except Exception as e:
+        logger.warning(f"KuCoin failed: {e}")
+
+    merged = merge_ordered_assets(provider_lists, CRYPTO_TOP_90)
+    if merged:
+        set_cached_payload(cache_key, merged)
+        return merged
 
     stale = get_stale_payload(cache_key)
     if stale is not None:
-        logger.warning("fetch_crypto_quotes_safe returning stale cached crypto data")
+        logger.warning("Returning stale cached crypto data")
         return stale
 
     return []
@@ -1554,8 +1854,7 @@ def fetch_stock_quotes_from_twelvedata():
             "logo": get_stock_logo(original_symbol),
             "icon": get_asset_icon(original_symbol),
         })
-
-        time.sleep(0.12)
+        time.sleep(0.10)
 
     return results
 
@@ -1599,9 +1898,52 @@ def fetch_stock_quotes_from_finnhub():
             "logo": get_stock_logo(symbol),
             "icon": get_asset_icon(symbol),
         })
+        time.sleep(0.10)
 
-        time.sleep(0.12)
+    return payload
 
+
+def fetch_stock_quotes_from_yfinance():
+    payload = []
+    targets = [s for s, _ in STOCK_UNIVERSE]
+    try:
+        data = yf.download(
+            tickers=" ".join(targets),
+            period="5d",
+            interval="1d",
+            group_by="ticker",
+            auto_adjust=False,
+            progress=False,
+            threads=True
+        )
+        if data is None or data.empty:
+            return []
+
+        for symbol, name in STOCK_UNIVERSE:
+            try:
+                if len(targets) == 1:
+                    hist = data.tail(2)
+                else:
+                    hist = data[symbol].dropna().tail(2)
+                if hist is None or hist.empty:
+                    continue
+                last_close = float(hist["Close"].iloc[-1])
+                prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_close
+                change = pct_change(last_close, prev_close)
+                payload.append({
+                    "symbol": symbol,
+                    "name": name,
+                    "price": last_close,
+                    "change": change,
+                    "dir": "up" if change >= 0 else "down",
+                    "signal": compute_light_signal(change),
+                    "logo": get_stock_logo(symbol),
+                    "icon": get_asset_icon(symbol),
+                })
+            except Exception:
+                continue
+    except Exception as e:
+        logger.warning(f"yfinance stock quotes failed: {e}")
     return payload
 
 
@@ -1618,18 +1960,19 @@ def fetch_stock_quotes_safe(force_refresh=False):
     try:
         payload = fetch_stock_quotes_from_twelvedata()
     except Exception as e:
-        logger.warning(f"fetch_stock_quotes_safe failed via Twelve Data: {e}")
+        logger.warning(f"Twelve Data stock fetch failed: {e}")
 
     if not payload:
         try:
             payload = fetch_stock_quotes_from_finnhub()
         except Exception as e:
-            logger.warning(f"fetch_stock_quotes_safe failed via Finnhub: {e}")
+            logger.warning(f"Finnhub stock fetch failed: {e}")
 
-    existing = {x["symbol"] for x in payload}
-    for item in FALLBACK_STOCKS:
-        if item["symbol"] not in existing:
-            payload.append(dict(item))
+    if not payload:
+        try:
+            payload = fetch_stock_quotes_from_yfinance()
+        except Exception as e:
+            logger.warning(f"yfinance stock fetch failed: {e}")
 
     if payload:
         set_cached_payload(cache_key, payload)
@@ -1637,10 +1980,11 @@ def fetch_stock_quotes_safe(force_refresh=False):
 
     stale = get_stale_payload(cache_key)
     if stale is not None:
-        logger.warning("fetch_stock_quotes_safe returning stale cached stock data")
+        logger.warning("Returning stale cached stock data")
         return stale
 
-    return FALLBACK_STOCKS.copy()
+    return []
+
 
 def paginate(items, page, per_page):
     total = len(items)
@@ -1650,8 +1994,11 @@ def paginate(items, page, per_page):
     end = start + per_page
     return items[start:end], total, pages, page
 
+def detail_cache_key(asset_type, symbol):
+    return f"detail::{asset_type}::{symbol.upper()}"
 
-def get_crypto_detail(symbol):
+
+def build_crypto_detail(symbol):
     symbol = symbol.upper()
     light_map = {a["symbol"]: a for a in fetch_crypto_quotes_safe()}
     if symbol not in light_map:
@@ -1659,7 +2006,7 @@ def get_crypto_detail(symbol):
 
     asset = dict(light_map[symbol])
     tf_map = fetch_crypto_multi_timeframe(symbol)
-    primary_candles = tf_map.get("15m") or []
+    primary_candles = tf_map.get("15m") or tf_map.get("1h") or tf_map.get("4h") or []
     agg = aggregate_multi_timeframe_brain("crypto", symbol, tf_map)
 
     feats = extract_market_features(primary_candles)
@@ -1709,7 +2056,7 @@ def get_crypto_detail(symbol):
     return asset
 
 
-def get_stock_detail(symbol):
+def build_stock_detail(symbol):
     symbol = symbol.upper()
     light_map = {a["symbol"]: a for a in fetch_stock_quotes_safe()}
     if symbol not in light_map:
@@ -1717,7 +2064,7 @@ def get_stock_detail(symbol):
 
     asset = dict(light_map[symbol])
     tf_map = fetch_stock_multi_timeframe(symbol)
-    primary_candles = tf_map.get("1d") or []
+    primary_candles = tf_map.get("1d") or tf_map.get("1wk") or tf_map.get("1mo") or []
     agg = aggregate_multi_timeframe_brain("stock", symbol, tf_map)
 
     feats = extract_market_features(primary_candles)
@@ -1767,6 +2114,62 @@ def get_stock_detail(symbol):
     return asset
 
 
+def get_crypto_detail(symbol, force_refresh=False):
+    symbol = symbol.upper()
+    cache_key = detail_cache_key("crypto", symbol)
+
+    if not force_refresh:
+        cached = get_cached_payload(cache_key, Config.DETAIL_CACHE_TTL)
+        if cached is not None:
+            return cached
+
+    asset = build_crypto_detail(symbol)
+    if asset:
+        set_cached_payload(cache_key, asset)
+        return asset
+
+    stale = get_stale_payload(cache_key)
+    return stale
+
+
+def get_stock_detail(symbol, force_refresh=False):
+    symbol = symbol.upper()
+    cache_key = detail_cache_key("stock", symbol)
+
+    if not force_refresh:
+        cached = get_cached_payload(cache_key, Config.DETAIL_CACHE_TTL)
+        if cached is not None:
+            return cached
+
+    asset = build_stock_detail(symbol)
+    if asset:
+        set_cached_payload(cache_key, asset)
+        return asset
+
+    stale = get_stale_payload(cache_key)
+    return stale
+
+
+def refresh_single_detail_cache(asset_type, symbol):
+    if asset_type == "crypto":
+        return get_crypto_detail(symbol, force_refresh=True)
+    return get_stock_detail(symbol, force_refresh=True)
+
+
+def warm_detail_caches():
+    for symbol in Config.DETAIL_WARM_CRYPTO:
+        try:
+            refresh_single_detail_cache("crypto", symbol)
+        except Exception as e:
+            logger.warning(f"Warm crypto detail failed for {symbol}: {e}")
+
+    for symbol in Config.DETAIL_WARM_STOCKS:
+        try:
+            refresh_single_detail_cache("stock", symbol)
+        except Exception as e:
+            logger.warning(f"Warm stock detail failed for {symbol}: {e}")
+
+
 def evaluate_signal_outcome(signal, entry_price, current_price):
     if not entry_price or not current_price:
         return None, None
@@ -1780,15 +2183,6 @@ def evaluate_signal_outcome(signal, entry_price, current_price):
     return ret, outcome
 
 
-def get_latest_price(asset_type, symbol):
-    if asset_type == "crypto":
-        light = {a["symbol"]: a for a in fetch_crypto_quotes_safe()}
-    else:
-        light = {a["symbol"]: a for a in fetch_stock_quotes_safe()}
-    item = light.get(symbol.upper())
-    return item["price"] if item else None
-
-
 def parse_sqlite_dt(v):
     try:
         return datetime.fromisoformat(str(v).replace(" ", "T"))
@@ -1796,33 +2190,105 @@ def parse_sqlite_dt(v):
         return None
 
 
+def select_price_near_target(points, target_dt):
+    if not points:
+        return None
+
+    target_ts = int(target_dt.timestamp())
+    ordered = sorted([p for p in points if p.get("ts") and p.get("close") is not None], key=lambda x: x["ts"])
+    if not ordered:
+        return None
+
+    after = [p for p in ordered if p["ts"] >= target_ts]
+    if after:
+        return float(after[0]["close"])
+
+    return float(ordered[-1]["close"])
+
+
+def fetch_crypto_history_points_for_horizon(symbol, horizon):
+    if horizon == "1h":
+        return fetch_crypto_candles(symbol, interval="15m", limit=24)
+    if horizon == "24h":
+        return fetch_crypto_candles(symbol, interval="1h", limit=48)
+    if horizon == "7d":
+        return fetch_crypto_candles(symbol, interval="4h", limit=72)
+    return None
+
+
+def fetch_stock_history_points_for_horizon(symbol, horizon):
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        if horizon == "1h":
+            hist = ticker.history(period="10d", interval="60m", auto_adjust=False)
+        elif horizon == "24h":
+            hist = ticker.history(period="60d", interval="60m", auto_adjust=False)
+        else:
+            hist = ticker.history(period="1y", interval="1d", auto_adjust=False)
+
+        if hist is None or hist.empty:
+            return None
+
+        points = []
+        for idx, row in hist.iterrows():
+            ts = normalize_dt_to_ts(idx.to_pydatetime())
+            if ts is None:
+                continue
+            points.append({
+                "ts": ts,
+                "close": float(row["Close"])
+            })
+        return points or None
+    except Exception:
+        return None
+
+
+def get_price_for_horizon(asset_type, symbol, created_dt, horizon):
+    horizon_map = {
+        "1h": timedelta(hours=1),
+        "24h": timedelta(hours=24),
+        "7d": timedelta(days=7),
+    }
+    target_dt = created_dt + horizon_map[horizon]
+
+    if asset_type == "crypto":
+        points = fetch_crypto_history_points_for_horizon(symbol, horizon)
+    else:
+        points = fetch_stock_history_points_for_horizon(symbol, horizon)
+
+    return select_price_near_target(points, target_dt)
+
+
 def refresh_signal_outcomes():
-    rows = db.get_open_outcomes(limit=200)
-    now = datetime.now()
+    rows = db.get_recent_snapshots_for_outcomes(days=10, limit=400)
+    now = datetime.utcnow()
+
     for row in rows:
         created = parse_sqlite_dt(row["created_at"])
         if not created:
             continue
 
         age_hours = (now - created).total_seconds() / 3600.0
-        price_now = get_latest_price(row["asset_type"], row["symbol"])
-        if not price_now:
-            continue
 
-        if age_hours >= 1:
-            ret, outcome = evaluate_signal_outcome(row["signal"], row["price_at_signal"], price_now)
-            if ret is not None:
-                db.insert_signal_outcome(row["id"], "1h", price_now, ret, outcome)
+        checks = [
+            ("1h", 1),
+            ("24h", 24),
+            ("7d", 24 * 7),
+        ]
 
-        if age_hours >= 24:
-            ret, outcome = evaluate_signal_outcome(row["signal"], row["price_at_signal"], price_now)
-            if ret is not None:
-                db.insert_signal_outcome(row["id"], "24h", price_now, ret, outcome)
+        for horizon, threshold in checks:
+            if age_hours < threshold:
+                continue
+            if db.outcome_exists(row["id"], horizon):
+                continue
 
-        if age_hours >= 24 * 7:
-            ret, outcome = evaluate_signal_outcome(row["signal"], row["price_at_signal"], price_now)
+            price_at_horizon = get_price_for_horizon(row["asset_type"], row["symbol"], created, horizon)
+            if not price_at_horizon:
+                continue
+
+            ret, outcome = evaluate_signal_outcome(row["signal"], row["price_at_signal"], price_at_horizon)
             if ret is not None:
-                db.insert_signal_outcome(row["id"], "7d", price_now, ret, outcome)
+                db.insert_signal_outcome(row["id"], horizon, price_at_horizon, ret, outcome)
 
 
 def summarize_performance(rows):
@@ -2036,6 +2502,7 @@ setInterval(refreshDetail, {interval});
         """
     return ""
 
+
 def nav_layout(
     title,
     content,
@@ -2142,9 +2609,37 @@ def get_web_user():
     return db.get_user_by_session(request.cookies.get("session_token"))
 
 
+def get_web_admin():
+    return db.get_admin_session(request.cookies.get("admin_token"))
+
+
 @app.before_request
-def load_user():
+def load_request_state():
     g.user = get_web_user()
+    g.admin = get_web_admin()
+
+
+@app.after_request
+def set_security_headers(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    resp.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "img-src 'self' https: data:; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com data:; "
+        "script-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self' https://checkout.stripe.com https://billing.stripe.com;"
+    )
+    if Config.COOKIE_SECURE:
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+    return resp
 
 
 def require_login(fn):
@@ -2159,7 +2654,7 @@ def require_login(fn):
 def require_admin(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        if request.cookies.get("admin_auth") != "1":
+        if not g.admin:
             return redirect("/admin/login")
         return fn(*args, **kwargs)
     return wrapper
@@ -2207,8 +2702,8 @@ Sitemap: {Config.DOMAIN}/sitemap.xml
 @app.route("/sitemap.xml")
 def sitemap_xml():
     static_pages = [
-        "/", "/crypto", "/stocks", "/forecast", "/trends", "/performance",
-        "/signal-changes", "/pricing", "/login", "/register",
+        "/", "/crypto", "/stocks", "/forecast", "/trends",
+        "/performance", "/signal-changes", "/pricing"
     ]
 
     crypto_assets = fetch_crypto_quotes_safe()[:30]
@@ -2246,10 +2741,10 @@ def sitemap_xml():
     for u in urls:
         xml.append(f"""
   <url>
-    <loc>{u['loc']}</loc>
-    <lastmod>{u['lastmod']}</lastmod>
-    <changefreq>{u['changefreq']}</changefreq>
-    <priority>{u['priority']}</priority>
+    <loc>{h(u['loc'])}</loc>
+    <lastmod>{h(u['lastmod'])}</lastmod>
+    <changefreq>{h(u['changefreq'])}</changefreq>
+    <priority>{h(u['priority'])}</priority>
   </url>
         """)
     xml.append("</urlset>")
@@ -2260,6 +2755,7 @@ def sitemap_xml():
 
 
 @app.route("/api/live/crypto-list")
+@limiter.limit("120 per minute")
 def api_live_crypto_list():
     items = []
     for a in fetch_crypto_quotes_safe():
@@ -2277,6 +2773,7 @@ def api_live_crypto_list():
 
 
 @app.route("/api/live/stocks-list")
+@limiter.limit("120 per minute")
 def api_live_stocks_list():
     items = []
     for a in fetch_stock_quotes_safe():
@@ -2294,6 +2791,7 @@ def api_live_stocks_list():
 
 
 @app.route("/api/live/crypto/<symbol>")
+@limiter.limit("60 per minute")
 def api_live_crypto_detail(symbol):
     asset = get_crypto_detail(symbol)
     if not asset:
@@ -2310,6 +2808,7 @@ def api_live_crypto_detail(symbol):
 
 
 @app.route("/api/live/stock/<symbol>")
+@limiter.limit("60 per minute")
 def api_live_stock_detail(symbol):
     asset = get_stock_detail(symbol)
     if not asset:
@@ -2323,6 +2822,7 @@ def api_live_stock_detail(symbol):
         "confidence_text": f"{int(asset['signal_meta']['confidence'] * 100)}% — {asset['signal_meta']['confidence_label']}",
         "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     })
+
 
 @app.route("/")
 def home():
@@ -2338,15 +2838,16 @@ def home():
         "signal": "HOLD",
         "logo": None,
     }
+
     featured_stock = dict(stock_list[0]) if stock_list else {
-        "symbol": "AAPL",
-        "name": "Apple",
+        "symbol": "N/A",
+        "name": "Stock / commodity data unavailable",
         "price": 0.0,
         "change": 0.0,
-        "dir": "up",
+        "dir": "down",
         "signal": "HOLD",
-        "logo": get_stock_logo("AAPL"),
-        "icon": get_asset_icon("AAPL"),
+        "logo": None,
+        "icon": "📈",
     }
 
     featured_crypto["price_display"] = fmt_price(featured_crypto["price"], featured_crypto["symbol"])
@@ -2358,7 +2859,9 @@ def home():
     if featured_crypto["symbol"] != "N/A":
         crypto_candles = fetch_crypto_candles(featured_crypto["symbol"], interval="15m", limit=40)
 
-    stock_candles = fetch_stock_candles(featured_stock["symbol"], period="3mo", interval="1d")
+    stock_candles = None
+    if featured_stock["symbol"] != "N/A":
+        stock_candles = fetch_stock_candles(featured_stock["symbol"], period="3mo", interval="1d")
 
     content = render_template_string("""
     <section class="hero">
@@ -2420,7 +2923,13 @@ def home():
             <span class="asset-feature-icon">{{ featured_stock.icon or "📈" }}</span>
           {% endif %}
           <div>
-            <h2 style="margin:0;"><a href="/stocks/{{ featured_stock.symbol }}">{{ featured_stock.symbol }}</a> — {{ featured_stock.name }}</h2>
+            <h2 style="margin:0;">
+              {% if featured_stock.symbol != "N/A" %}
+                <a href="/stocks/{{ featured_stock.symbol }}">{{ featured_stock.symbol }}</a> — {{ featured_stock.name }}
+              {% else %}
+                {{ featured_stock.name }}
+              {% endif %}
+            </h2>
             <div class="asset-subtitle">Global stock / commodity snapshot</div>
           </div>
         </div>
@@ -2483,7 +2992,7 @@ def home():
 
 @app.route("/crypto")
 def crypto():
-    page = int(request.args.get("page", 1) or 1)
+    page = get_int_arg("page", default=1, min_value=1)
     search = (request.args.get("q") or "").strip().lower()
 
     assets = [dict(a) for a in fetch_crypto_quotes_safe()]
@@ -2500,38 +3009,39 @@ def crypto():
     rows = ""
     for a in page_items:
         sig_class = {"BUY": "signal-buy", "HOLD": "signal-hold", "SELL": "signal-sell"}[a["signal"]]
-        signal_html = f'<span id="signal-{a["symbol"]}" class="signal {sig_class}">{a["signal"]}</span>' if unlocked else '<span class="signal signal-locked">Locked</span>'
+        signal_html = f'<span id="signal-{h(a["symbol"])}" class="signal {sig_class}">{h(a["signal"])}</span>' if unlocked else '<span class="signal signal-locked">Locked</span>'
         rows += f"""
         <tr>
           <td class="asset-name">
             <strong class="asset-row">
-              <img class="asset-logo" src="{a.get('logo', '')}" alt="{a['symbol']}" onerror="this.style.display='none'">
-              <a href="/crypto/{a['symbol']}">{a['symbol']}</a>
+              <img class="asset-logo" src="{h(a.get('logo', ''))}" alt="{h(a['symbol'])}" onerror="this.style.display='none'">
+              <a href="/crypto/{h(a['symbol'])}">{h(a['symbol'])}</a>
             </strong>
-            <span>{a['name']}</span>
+            <span>{h(a['name'])}</span>
           </td>
-          <td id="price-{a['symbol']}">{a['price_display']}</td>
-          <td id="change-{a['symbol']}" class="{'up' if a['dir']=='up' else 'down'}">{a['change_display']}</td>
+          <td id="price-{h(a['symbol'])}">{h(a['price_display'])}</td>
+          <td id="change-{h(a['symbol'])}" class="{'up' if a['dir']=='up' else 'down'}">{h(a['change_display'])}</td>
           <td>{signal_html}</td>
           <td>{"Unlocked" if unlocked else "Basic+"}</td>
         </tr>
         """
 
     pagination = ""
+    sq = safe_query_value(search)
     if current > 1:
-        pagination += f'<a class="page-link" href="/crypto?page={current-1}&q={search}">Previous</a>'
+        pagination += f'<a class="page-link" href="/crypto?page={current-1}&q={sq}">Previous</a>'
     pagination += f'<span class="page-link">Page {current} / {pages}</span>'
     if current < pages:
-        pagination += f'<a class="page-link" href="/crypto?page={current+1}&q={search}">Next</a>'
+        pagination += f'<a class="page-link" href="/crypto?page={current+1}&q={sq}">Next</a>'
 
     content = f"""
     <section class="section">
       <h1>Crypto</h1>
       <p class="section-sub">Top crypto assets with live-updating previews and premium multi-timeframe detail pages.</p>
-      <div id="live-updated-crypto" class="live-stamp">Last updated: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC</div>
+      <div id="live-updated-crypto" class="live-stamp">Last updated: {h(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))} UTC</div>
 
       <form method="GET" style="margin-bottom:20px;">
-        <input class="search-box" type="text" name="q" placeholder="Search crypto symbol or name..." value="{search}">
+        <input class="search-box" type="text" name="q" placeholder="Search crypto symbol or name..." value="{h(search)}">
       </form>
 
       <div class="table-shell">
@@ -2560,7 +3070,7 @@ def crypto():
 
 @app.route("/stocks")
 def stocks():
-    page = int(request.args.get("page", 1) or 1)
+    page = get_int_arg("page", default=1, min_value=1)
     search = (request.args.get("q") or "").strip().lower()
 
     assets = [dict(a) for a in fetch_stock_quotes_safe()]
@@ -2578,43 +3088,44 @@ def stocks():
     for a in page_items:
         safe_id = a["symbol"].replace("=", "_").replace("-", "_")
         media = (
-            f'<img class="asset-logo" src="{a.get("logo","")}" alt="{a["symbol"]}" onerror="this.style.display=\'none\'">'
+            f'<img class="asset-logo" src="{h(a.get("logo",""))}" alt="{h(a["symbol"])}" onerror="this.style.display=\'none\'">'
             if a.get("logo") else
-            f'<span class="asset-icon">{a.get("icon","📈")}</span>'
+            f'<span class="asset-icon">{h(a.get("icon","📈"))}</span>'
         )
         sig_class = {"BUY": "signal-buy", "HOLD": "signal-hold", "SELL": "signal-sell"}[a["signal"]]
-        signal_html = f'<span id="signal-{safe_id}" class="signal {sig_class}">{a["signal"]}</span>' if unlocked else '<span class="signal signal-locked">Locked</span>'
+        signal_html = f'<span id="signal-{h(safe_id)}" class="signal {sig_class}">{h(a["signal"])}</span>' if unlocked else '<span class="signal signal-locked">Locked</span>'
         rows += f"""
         <tr>
           <td class="asset-name">
             <strong class="asset-row">
               {media}
-              <a href="/stocks/{a['symbol']}">{a['symbol']}</a>
+              <a href="/stocks/{h(a['symbol'])}">{h(a['symbol'])}</a>
             </strong>
-            <span>{a['name']}</span>
+            <span>{h(a['name'])}</span>
           </td>
-          <td id="price-{safe_id}">{a['price_display']}</td>
-          <td id="change-{safe_id}" class="{'up' if a['dir']=='up' else 'down'}">{a['change_display']}</td>
+          <td id="price-{h(safe_id)}">{h(a['price_display'])}</td>
+          <td id="change-{h(safe_id)}" class="{'up' if a['dir']=='up' else 'down'}">{h(a['change_display'])}</td>
           <td>{signal_html}</td>
           <td>{"Unlocked" if unlocked else "Basic+"}</td>
         </tr>
         """
 
     pagination = ""
+    sq = safe_query_value(search)
     if current > 1:
-        pagination += f'<a class="page-link" href="/stocks?page={current-1}&q={search}">Previous</a>'
+        pagination += f'<a class="page-link" href="/stocks?page={current-1}&q={sq}">Previous</a>'
     pagination += f'<span class="page-link">Page {current} / {pages}</span>'
     if current < pages:
-        pagination += f'<a class="page-link" href="/stocks?page={current+1}&q={search}">Next</a>'
+        pagination += f'<a class="page-link" href="/stocks?page={current+1}&q={sq}">Next</a>'
 
     content = f"""
     <section class="section">
       <h1>Stocks + Commodities</h1>
       <p class="section-sub">Global market list with live-updating previews and premium multi-timeframe detail analysis.</p>
-      <div id="live-updated-stocks" class="live-stamp">Last updated: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC</div>
+      <div id="live-updated-stocks" class="live-stamp">Last updated: {h(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))} UTC</div>
 
       <form method="GET" style="margin-bottom:20px;">
-        <input class="search-box" type="text" name="q" placeholder="Search stock or commodity..." value="{search}">
+        <input class="search-box" type="text" name="q" placeholder="Search stock or commodity..." value="{h(search)}">
       </form>
 
       <div class="table-shell">
@@ -2640,6 +3151,7 @@ def stocks():
         ])
     )
 
+
 @app.route("/crypto/<symbol>")
 def crypto_detail(symbol):
     asset = get_crypto_detail(symbol)
@@ -2656,7 +3168,7 @@ def crypto_detail(symbol):
         in_watchlist = any(x["asset_type"] == "crypto" and x["symbol"] == asset["symbol"] for x in wl)
 
     sig_class = {"BUY": "signal-buy", "HOLD": "signal-hold", "SELL": "signal-sell"}[asset["signal"]]
-    signal_html = f'<span id="detail-signal" class="signal {sig_class}">{asset["signal"]}</span>' if unlocked_signals else '<span class="signal signal-locked">Locked</span>'
+    signal_html = f'<span id="detail-signal" class="signal {sig_class}">{h(asset["signal"])}</span>' if unlocked_signals else '<span class="signal signal-locked">Locked</span>'
 
     content = render_template_string("""
     <section class="section">
@@ -2794,7 +3306,7 @@ def stock_detail(symbol):
         in_watchlist = any(x["asset_type"] == "stock" and x["symbol"] == asset["symbol"] for x in wl)
 
     sig_class = {"BUY": "signal-buy", "HOLD": "signal-hold", "SELL": "signal-sell"}[asset["signal"]]
-    signal_html = f'<span id="detail-signal" class="signal {sig_class}">{asset["signal"]}</span>' if unlocked_signals else '<span class="signal signal-locked">Locked</span>'
+    signal_html = f'<span id="detail-signal" class="signal {sig_class}">{h(asset["signal"])}</span>' if unlocked_signals else '<span class="signal signal-locked">Locked</span>'
 
     content = render_template_string("""
     <section class="section">
@@ -2930,9 +3442,9 @@ def forecast():
     """
     if unlocked:
         cards = f"""
-          <div class="price-card"><h3>Trend</h3><div style="font-size:2rem;font-weight:800;" class="up">{f['trend']}</div><p>{f['summary']}</p></div>
-          <div class="price-card"><h3>Projected View</h3><div style="font-size:2rem;font-weight:800;" class="up">{f['projected_change']}</div><p>Multi-timeframe projection signal output.</p></div>
-          <div class="price-card"><h3>Confidence Band</h3><div style="font-size:2rem;font-weight:800;">{f['confidence_band']}</div><p>Indicator agreement level, not guaranteed outcome probability.</p></div>
+          <div class="price-card"><h3>Trend</h3><div style="font-size:2rem;font-weight:800;" class="up">{h(f['trend'])}</div><p>{h(f['summary'])}</p></div>
+          <div class="price-card"><h3>Projected View</h3><div style="font-size:2rem;font-weight:800;" class="up">{h(f['projected_change'])}</div><p>Multi-timeframe projection signal output.</p></div>
+          <div class="price-card"><h3>Confidence Band</h3><div style="font-size:2rem;font-weight:800;">{h(f['confidence_band'])}</div><p>Indicator agreement level, not guaranteed outcome probability.</p></div>
         """
     content = f"""
     <section class="section">
@@ -2962,9 +3474,9 @@ def trends():
     """
     if unlocked:
         cards = f"""
-          <div class="price-card"><h3>Trend State</h3><div style="font-size:2rem;font-weight:800;" class="up">{t['state']}</div><p>{t['summary']}</p></div>
-          <div class="price-card"><h3>Trend Strength</h3><div style="font-size:2rem;font-weight:800;">{t['strength']}</div><p>Directional magnitude from the multi-timeframe model.</p></div>
-          <div class="price-card"><h3>Regime Read</h3><div style="font-size:2rem;font-weight:800;">{t['read']}</div><p>Current market structure classification.</p></div>
+          <div class="price-card"><h3>Trend State</h3><div style="font-size:2rem;font-weight:800;" class="up">{h(t['state'])}</div><p>{h(t['summary'])}</p></div>
+          <div class="price-card"><h3>Trend Strength</h3><div style="font-size:2rem;font-weight:800;">{h(t['strength'])}</div><p>Directional magnitude from the multi-timeframe model.</p></div>
+          <div class="price-card"><h3>Regime Read</h3><div style="font-size:2rem;font-weight:800;">{h(t['read'])}</div><p>Current market structure classification.</p></div>
         """
     content = f"""
     <section class="section">
@@ -2990,22 +3502,24 @@ def performance():
     table_rows = ""
     for r in rows[:100]:
         outcome_class = "up" if r["outcome"] == "correct" else "down"
+        ret_val = float(r["return_pct"] or 0)
+        conf_pct = float(r["confidence"] or 0) * 100
         table_rows += f"""
         <tr>
-          <td>{r['asset_type']}</td>
-          <td>{r['symbol']}</td>
-          <td>{r['timeframe']}</td>
-          <td>{r['signal_type']}</td>
-          <td>{r['signal']}</td>
-          <td>{float(r['confidence'] or 0) * 100:.0f}%</td>
-          <td class="{outcome_class}">{r['outcome']}</td>
-          <td class="{'up' if float(r['return_pct'] or 0) >= 0 else 'down'}">{float(r['return_pct'] or 0):+.2f}%</td>
-          <td>{r['horizon']}</td>
-          <td>{r['created_at']}</td>
+          <td>{h(r['asset_type'])}</td>
+          <td>{h(r['symbol'])}</td>
+          <td>{h(r['timeframe'])}</td>
+          <td>{h(r['signal_type'])}</td>
+          <td>{h(r['signal'])}</td>
+          <td>{conf_pct:.0f}%</td>
+          <td class="{outcome_class}">{h(r['outcome'])}</td>
+          <td class="{'up' if ret_val >= 0 else 'down'}">{ret_val:+.2f}%</td>
+          <td>{h(r['horizon'])}</td>
+          <td>{h(r['created_at'])}</td>
         </tr>
         """
 
-    best_assets_html = "".join(f"<li>{sym}: {ret:+.2f}% avg</li>" for sym, ret in summary["best_assets"]) or "<li>No evaluated signals yet.</li>"
+    best_assets_html = "".join(f"<li>{h(sym)}: {ret:+.2f}% avg</li>" for sym, ret in summary["best_assets"]) or "<li>No evaluated signals yet.</li>"
 
     content = f"""
     <section class="section">
@@ -3053,13 +3567,13 @@ def signal_changes():
     for r in rows:
         table_rows += f"""
         <tr>
-          <td>{r['asset_type']}</td>
-          <td>{r['symbol']}</td>
-          <td>{r['timeframe']}</td>
-          <td>{r['signal_type']}</td>
-          <td>{r.get('old_signal') or '-'}</td>
-          <td>{r.get('new_signal') or '-'}</td>
-          <td>{r['changed_at']}</td>
+          <td>{h(r['asset_type'])}</td>
+          <td>{h(r['symbol'])}</td>
+          <td>{h(r['timeframe'])}</td>
+          <td>{h(r['signal_type'])}</td>
+          <td>{h(r.get('old_signal') or '-')}</td>
+          <td>{h(r.get('new_signal') or '-')}</td>
+          <td>{h(r['changed_at'])}</td>
         </tr>
         """
     content = f"""
@@ -3084,10 +3598,20 @@ def signal_changes():
 
 @app.route("/pricing")
 def pricing():
+    billing_ready = bool(stripe and Config.STRIPE_SECRET_KEY and Config.STRIPE_WEBHOOK_SECRET)
+
     content = render_template_string("""
     <section class="section">
       <h1>Pricing</h1>
       <p class="section-sub">Launch pricing designed to reduce friction while proving trust and retention.</p>
+
+      {% if not billing_ready %}
+      <div class="card" style="margin-bottom:24px;">
+        <h3>Billing temporarily unavailable</h3>
+        <p>Stripe checkout is not available right now. Browse the platform and try again later.</p>
+      </div>
+      {% endif %}
+
       <div class="market-grid">
         <div class="price-card">
           <h3>Free</h3>
@@ -3099,7 +3623,7 @@ def pricing():
           <h3>Basic</h3>
           <div style="font-size:2.4rem;font-weight:800;">$9</div>
           <p>Unlock multi-timeframe crypto + stock signals and confidence labels</p>
-          {% if user %}
+          {% if user and billing_ready %}
             <form method="POST" action="/checkout/basic"><button class="btn btn-primary" type="submit">Choose Basic</button></form>
           {% endif %}
         </div>
@@ -3108,7 +3632,7 @@ def pricing():
           <h3>Pro</h3>
           <div style="font-size:2.4rem;font-weight:800;">$29</div>
           <p>Everything in Basic • forecasts • trend regime views • better decision context</p>
-          {% if user %}
+          {% if user and billing_ready %}
             <form method="POST" action="/checkout/pro"><button class="btn btn-primary" type="submit">Choose Pro</button></form>
           {% endif %}
         </div>
@@ -3117,7 +3641,7 @@ def pricing():
           <h3>Elite</h3>
           <div style="font-size:2.4rem;font-weight:800;">$79</div>
           <p>Everything in Pro • highest access tier • positioned for serious users</p>
-          {% if user %}
+          {% if user and billing_ready %}
             <form method="POST" action="/checkout/elite"><button class="btn btn-primary" type="submit">Choose Elite</button></form>
           {% endif %}
         </div>
@@ -3139,7 +3663,7 @@ def pricing():
 
       {{ disclaimer|safe }}
     </section>
-    """, user=g.get("user"), contact_email=Config.CONTACT_EMAIL, disclaimer=legal_disclaimer_html())
+    """, user=g.get("user"), contact_email=Config.CONTACT_EMAIL, disclaimer=legal_disclaimer_html(), billing_ready=billing_ready)
 
     return nav_layout(
         "Pricing - AVA Markets",
@@ -3153,13 +3677,14 @@ def pricing():
         ])
     )
 
+
 @app.route("/watchlist/add/<asset_type>/<symbol>", methods=["POST"])
 @require_login
 def watchlist_add(asset_type, symbol):
     if asset_type not in ["crypto", "stock"]:
         return redirect("/dashboard")
     db.add_watchlist(g.user["id"], asset_type, symbol)
-    return redirect(request.referrer or "/dashboard")
+    return redirect(safe_redirect_target("/dashboard"))
 
 
 @app.route("/watchlist/remove/<asset_type>/<symbol>", methods=["POST"])
@@ -3168,10 +3693,11 @@ def watchlist_remove(asset_type, symbol):
     if asset_type not in ["crypto", "stock"]:
         return redirect("/dashboard")
     db.remove_watchlist(g.user["id"], asset_type, symbol)
-    return redirect(request.referrer or "/dashboard")
+    return redirect(safe_redirect_target("/dashboard"))
 
 
 @app.route("/register", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def register():
     if g.user:
         return redirect("/dashboard")
@@ -3184,7 +3710,7 @@ def register():
             <p>Start using AVA Markets in minutes.</p>
             <form method="POST">
               <input type="email" name="email" placeholder="Email" required>
-              <input type="password" name="password" placeholder="Password (min 6 chars)" required>
+              <input type="password" name="password" placeholder="Password (min 8 chars)" required>
               <button type="submit">Register</button>
             </form>
           </div>
@@ -3199,10 +3725,10 @@ def register():
     email = (request.form.get("email") or "").strip().lower()
     password = (request.form.get("password") or "").strip()
 
-    if not email or len(password) < 6:
+    if not email or "@" not in email or len(password) < 8:
         return nav_layout(
             "Register Error",
-            '<div class="form-shell"><div class="form-card"><div class="error">Email and password (min 6 chars) required.</div><a href="/register">Try again</a></div></div>',
+            '<div class="form-shell"><div class="form-card"><div class="error">Valid email and password (min 8 chars) required.</div><a href="/register">Try again</a></div></div>',
             robots_content="noindex, nofollow"
         )
 
@@ -3216,11 +3742,12 @@ def register():
 
     token = db.create_session(user["id"])
     resp = make_response(redirect("/dashboard"))
-    resp.set_cookie("session_token", token, httponly=True, samesite="Lax", max_age=30 * 86400)
+    resp.set_cookie("session_token", token, httponly=True, samesite="Lax", secure=Config.COOKIE_SECURE, max_age=30 * 86400)
     return resp
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login():
     if g.user:
         return redirect("/dashboard")
@@ -3258,7 +3785,7 @@ def login():
 
     token = db.create_session(user["id"])
     resp = make_response(redirect("/dashboard"))
-    resp.set_cookie("session_token", token, httponly=True, samesite="Lax", max_age=30 * 86400)
+    resp.set_cookie("session_token", token, httponly=True, samesite="Lax", secure=Config.COOKIE_SECURE, max_age=30 * 86400)
     return resp
 
 
@@ -3268,7 +3795,7 @@ def logout():
     if token:
         db.delete_session(token)
     resp = make_response(redirect("/"))
-    resp.delete_cookie("session_token")
+    resp.delete_cookie("session_token", secure=Config.COOKIE_SECURE, samesite="Lax")
     return resp
 
 
@@ -3280,14 +3807,14 @@ def dashboard():
 
     watch_rows = ""
     for item in watchlist[:20]:
-        href = f"/crypto/{item['symbol']}" if item["asset_type"] == "crypto" else f"/stocks/{item['symbol']}"
+        href = f"/crypto/{h(item['symbol'])}" if item["asset_type"] == "crypto" else f"/stocks/{h(item['symbol'])}"
         watch_rows += f"""
         <tr>
-          <td>{item['asset_type']}</td>
-          <td><a href="{href}">{item['symbol']}</a></td>
-          <td>{item['created_at']}</td>
+          <td>{h(item['asset_type'])}</td>
+          <td><a href="{href}">{h(item['symbol'])}</a></td>
+          <td>{h(item['created_at'])}</td>
           <td>
-            <form method="POST" action="/watchlist/remove/{item['asset_type']}/{item['symbol']}">
+            <form method="POST" action="/watchlist/remove/{h(item['asset_type'])}/{h(item['symbol'])}">
               <button class="btn btn-secondary" type="submit">Remove</button>
             </form>
           </td>
@@ -3308,9 +3835,9 @@ def dashboard():
       <div class="dashboard-grid">
         <div class="dashboard-card">
           <h3>Account</h3>
-          <p><strong>Email:</strong> {user['email']}</p>
-          <p><strong>Tier:</strong> <span class="tier">{user['tier']}</span></p>
-          <p><strong>Subscription:</strong> {user['subscription_status']}</p>
+          <p><strong>Email:</strong> {h(user['email'])}</p>
+          <p><strong>Tier:</strong> <span class="tier">{h(user['tier'])}</span></p>
+          <p><strong>Subscription:</strong> {h(user['subscription_status'])}</p>
         </div>
 
         <div class="dashboard-card">
@@ -3322,7 +3849,7 @@ def dashboard():
 
         <div class="dashboard-card">
           <h3>API Key</h3>
-          <div class="key">{user['api_key']}</div>
+          <div class="key">{h(user['api_key'])}</div>
         </div>
       </div>
 
@@ -3353,10 +3880,18 @@ def dashboard():
 
 @app.route("/checkout/<tier>", methods=["POST"])
 @require_login
+@limiter.limit("10 per hour")
 def checkout(tier):
     tier = tier.lower()
     if tier not in ["basic", "pro", "elite"]:
         return redirect("/pricing")
+
+    if not stripe or not Config.STRIPE_SECRET_KEY or not Config.STRIPE_WEBHOOK_SECRET:
+        return nav_layout(
+            "Billing Unavailable",
+            "<section class='section'><div class='card'><h1>Billing unavailable</h1><p>Stripe checkout is not configured correctly. Please try again later.</p></div></section>",
+            robots_content="noindex, nofollow"
+        ), 503
 
     success_url = f"{Config.DOMAIN}/dashboard?checkout=success"
     cancel_url = f"{Config.DOMAIN}/pricing?checkout=cancel"
@@ -3365,13 +3900,16 @@ def checkout(tier):
     if session and getattr(session, "url", None):
         return redirect(session.url)
 
-    db.update_user(g.user["id"], tier=tier, subscription_status="active")
-    db.log_payment(g.user["id"], "manual", f"local_{tier}_{int(time.time())}", Config.TIERS[tier]["price"], "succeeded")
-    return redirect("/dashboard")
+    return nav_layout(
+        "Billing Error",
+        "<section class='section'><div class='card'><h1>Checkout error</h1><p>We could not create your Stripe checkout session. No upgrade was applied.</p></div></section>",
+        robots_content="noindex, nofollow"
+    ), 503
 
 
 @app.route("/billing/portal", methods=["POST"])
 @require_login
+@limiter.limit("20 per hour")
 def billing_portal():
     if not g.user.get("stripe_customer_id"):
         return redirect("/dashboard")
@@ -3382,24 +3920,20 @@ def billing_portal():
 
 
 @app.route("/webhook/stripe", methods=["POST"])
+@limiter.limit("60 per hour")
 def stripe_webhook():
-    payload = request.data
-    sig = request.headers.get("Stripe-Signature")
+    if not stripe or not Config.STRIPE_SECRET_KEY or not Config.STRIPE_WEBHOOK_SECRET:
+        logger.error("Stripe webhook requested but Stripe/webhook secret is not configured.")
+        return jsonify({"error": "webhook_not_configured"}), 503
 
-    if stripe and Config.STRIPE_WEBHOOK_SECRET:
-        try:
-            event = stripe.Webhook.construct_event(payload, sig, Config.STRIPE_WEBHOOK_SECRET)
-        except Exception as e:
-            logger.error(f"Bad Stripe signature: {e}")
-            return jsonify({"error": "Bad signature"}), 400
-    else:
-        try:
-            if isinstance(payload, bytes):
-                payload = payload.decode("utf-8")
-            event = json.loads(payload)
-        except Exception as e:
-            logger.error(f"Bad payload: {e}")
-            return jsonify({"error": "Bad payload"}), 400
+    payload = request.data
+    sig = request.headers.get("Stripe-Signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, Config.STRIPE_WEBHOOK_SECRET)
+    except Exception as e:
+        logger.error(f"Bad Stripe signature: {e}")
+        return jsonify({"error": "bad_signature"}), 400
 
     etype = event.get("type", "")
     obj = event.get("data", {}).get("object", {})
@@ -3407,8 +3941,8 @@ def stripe_webhook():
     if etype == "checkout.session.completed":
         meta = obj.get("metadata", {})
         uid = int(meta.get("user_id", 0))
-        tier = meta.get("tier", "basic")
-        if uid:
+        tier = (meta.get("tier") or "basic").lower()
+        if uid and tier in ["basic", "pro", "elite"]:
             db.update_user(
                 uid,
                 stripe_customer_id=obj.get("customer"),
@@ -3436,9 +3970,11 @@ def stripe_webhook():
 
     return jsonify({"received": True})
 
+
 @app.route("/admin/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def admin_login():
-    if request.cookies.get("admin_auth") == "1":
+    if g.admin:
         return redirect("/admin")
 
     error = ""
@@ -3446,9 +3982,10 @@ def admin_login():
         username = (request.form.get("username") or "").strip()
         password = (request.form.get("password") or "").strip()
 
-        if username == Config.ADMIN_USERNAME and password == Config.ADMIN_PASSWORD:
+        if secrets.compare_digest(username, Config.ADMIN_USERNAME) and secrets.compare_digest(password, Config.ADMIN_PASSWORD):
+            admin_token = db.create_admin_session(hours=12)
             resp = make_response(redirect("/admin"))
-            resp.set_cookie("admin_auth", "1", httponly=True, samesite="Lax", max_age=60 * 60 * 12)
+            resp.set_cookie("admin_token", admin_token, httponly=True, samesite="Strict", secure=Config.COOKIE_SECURE, max_age=60 * 60 * 12)
             return resp
 
         error = "Invalid admin credentials."
@@ -3476,8 +4013,11 @@ def admin_login():
 
 @app.route("/admin/logout")
 def admin_logout():
+    token = request.cookies.get("admin_token")
+    if token:
+        db.delete_admin_session(token)
     resp = make_response(redirect("/"))
-    resp.delete_cookie("admin_auth")
+    resp.delete_cookie("admin_token", secure=Config.COOKIE_SECURE, samesite="Strict")
     return resp
 
 
@@ -3491,11 +4031,11 @@ def admin():
     for u in users:
         user_rows += f"""
         <tr>
-          <td>{u['id']}</td>
-          <td>{u['email']}</td>
-          <td>{u['tier']}</td>
-          <td>{u['subscription_status']}</td>
-          <td>{u['created_at']}</td>
+          <td>{h(u['id'])}</td>
+          <td>{h(u['email'])}</td>
+          <td>{h(u['tier'])}</td>
+          <td>{h(u['subscription_status'])}</td>
+          <td>{h(u['created_at'])}</td>
         </tr>
         """
 
@@ -3503,12 +4043,12 @@ def admin():
     for p in payments:
         payment_rows += f"""
         <tr>
-          <td>{p.get('email') or '-'}</td>
-          <td>{p['provider']}</td>
-          <td>{p['payment_id']}</td>
-          <td>{p['amount']}</td>
-          <td>{p['status']}</td>
-          <td>{p['created_at']}</td>
+          <td>{h(p.get('email') or '-')}</td>
+          <td>{h(p['provider'])}</td>
+          <td>{h(p['payment_id'])}</td>
+          <td>{h(p['amount'])}</td>
+          <td>{h(p['status'])}</td>
+          <td>{h(p['created_at'])}</td>
         </tr>
         """
 
@@ -3566,6 +4106,53 @@ def server_error(e):
     ), 500
 
 
+_bg_started = False
+
+
+def background_refresh_loop():
+    while True:
+        try:
+            fetch_crypto_quotes_safe(force_refresh=True)
+        except Exception as e:
+            logger.warning(f"Background crypto refresh failed: {e}")
+
+        try:
+            fetch_stock_quotes_safe(force_refresh=True)
+        except Exception as e:
+            logger.warning(f"Background stock refresh failed: {e}")
+
+        try:
+            warm_detail_caches()
+        except Exception as e:
+            logger.warning(f"Background detail warm failed: {e}")
+
+        try:
+            refresh_signal_outcomes()
+        except Exception as e:
+            logger.warning(f"Background outcome refresh failed: {e}")
+
+        try:
+            db.purge_expired_rows()
+        except Exception as e:
+            logger.warning(f"Background cleanup failed: {e}")
+
+        time.sleep(max(60, Config.BACKGROUND_REFRESH_SECONDS))
+
+
+def start_background_refresh():
+    global _bg_started
+    if _bg_started:
+        return
+    if not Config.ENABLE_BACKGROUND_REFRESH or not Config.BACKGROUND_REFRESH_LEADER:
+        logger.info("Background refresh disabled or not leader.")
+        return
+
+    t = threading.Thread(target=background_refresh_loop, daemon=True)
+    t.start()
+    _bg_started = True
+    logger.info("Background refresh thread started.")
+
+
 try:
     fetch_crypto_quotes_safe(force_refresh=True)
 except Exception as e:
@@ -3577,9 +4164,23 @@ except Exception as e:
     logger.warning(f"Initial stock cache warm failed: {e}")
 
 try:
+    warm_detail_caches()
+except Exception as e:
+    logger.warning(f"Initial detail warm failed: {e}")
+
+try:
     refresh_signal_outcomes()
 except Exception as e:
     logger.warning(f"Initial outcome refresh failed: {e}")
+
+try:
+    db.purge_expired_rows()
+except Exception as e:
+    logger.warning(f"Initial cleanup failed: {e}")
+
+# Start once in normal runtime.
+if (not Config.DEBUG) or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    start_background_refresh()
 
 
 if __name__ == "__main__":
