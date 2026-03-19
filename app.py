@@ -2,14 +2,11 @@
 import os
 import json
 import time
-import math
 import html
 import sqlite3
-import secrets
 import logging
 import threading
 import requests
-import urllib.parse
 
 from datetime import datetime
 from functools import wraps
@@ -40,8 +37,8 @@ class Config:
     DOMAIN = os.environ.get("DOMAIN", "").strip().rstrip("/")
     CRYPTO_CACHE_TTL = 300
     STOCK_CACHE_TTL = 600
-    PAGE_SIZE_CRYPTO = 25
-    PAGE_SIZE_STOCKS = 20
+    PAGE_SIZE_CRYPTO = 100  # Show all cryptos on one page
+    PAGE_SIZE_STOCKS = 100  # Show all stocks on one page
     RATE_LIMIT_STORAGE_URI = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory://")
 
 app = Flask(__name__)
@@ -79,7 +76,7 @@ p{color:var(--muted);line-height:1.7;font-size:1.02rem}
 .up{color:var(--green)} .down{color:var(--red)}
 .signal{display:inline-flex;padding:8px 12px;border-radius:999px;font-weight:700;font-size:.82rem}
 .signal-buy{background:rgba(34,197,94,.14);color:#86efac} .signal-hold{background:rgba(245,158,11,.14);color:#fde68a} .signal-sell{background:rgba(239,68,68,.14);color:#fca5a5}
-.asset-row{display:flex;align-items:center;gap:10px;} .asset-logo{width:24px;height:24px;border-radius:50%;object-fit:cover;}
+.asset-row{display:flex;align-items:center;gap:10px;} .asset-logo{width:24px;height:24px;border-radius:50%;object-fit:cover;background:#fff;}
 .asset-icon{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;}
 .pagination{display:flex;gap:10px;margin-top:22px;} .page-link{padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text);font-weight:700}
 @media (max-width: 900px){ .hero{grid-template-columns:1fr} .nav{flex-direction:column;gap:14px} .nav-links{justify-content:center} }
@@ -99,20 +96,6 @@ CRYPTO_TOP_90 = [
 ]
 CRYPTO_NAME_MAP = {s: n for s, n in CRYPTO_TOP_90}
 
-COINGECKO_IDS = {
-    "BTC": "bitcoin", "ETH": "ethereum", "BNB": "binancecoin", "SOL": "solana", "XRP": "ripple", "DOGE": "dogecoin", "ADA": "cardano", "AVAX": "avalanche-2", "LINK": "chainlink", "DOT": "polkadot",
-    "MATIC": "matic-network", "LTC": "litecoin", "BCH": "bitcoin-cash", "ATOM": "cosmos", "UNI": "uniswap", "NEAR": "near", "APT": "aptos", "ARB": "arbitrum", "OP": "optimism", "SUI": "sui",
-    "PEPE": "pepe", "SHIB": "shiba-inu", "TRX": "tron", "ETC": "ethereum-classic", "XLM": "stellar", "HBAR": "hedera-hashgraph", "ICP": "internet-computer", "FIL": "filecoin",
-    "INJ": "injective-protocol", "RNDR": "render-token", "AAVE": "aave", "BONK": "bonk", "WIF": "dogwifhat", "FET": "fetch-ai", "RUNE": "thorchain", "MKR": "maker", "ALGO": "algorand",
-    "VET": "vechain", "EGLD": "elrond-erd-2", "THETA": "theta-token", "SAND": "the-sandbox", "MANA": "decentraland", "AXS": "axie-infinity", "GRT": "the-graph", "FLOW": "flow",
-    "KAS": "kaspa", "KAVA": "kava", "DYDX": "dydx", "WLD": "worldcoin-wld", "ARKM": "arkham", "STRK": "starknet", "ENA": "ethena", "ONDO": "ondo-finance", "JASMY": "jasmycoin",
-    "LDO": "lido-dao", "CRV": "curve-dao-token", "SNX": "havven", "COMP": "compound-governance-token", "1INCH": "1inch", "BAT": "basic-attention-token", "ZEC": "zcash", "DASH": "dash",
-    "CHZ": "chiliz", "ROSE": "oasis-network", "QTUM": "qtum", "IOTA": "iota", "ZIL": "zilliqa", "KSM": "kusama", "GMT": "stepn", "BLUR": "blur", "ACE": "fusionist", "NEO": "neo",
-    "CFX": "conflux-token", "FTM": "fantom", "GALA": "gala", "LRC": "loopring", "ENS": "ethereum-name-service", "SXP": "sxp", "HOT": "holotoken", "ANKR": "ankr", "ICX": "icon",
-    "SC": "siacoin", "CKB": "nervos-network", "MASK": "mask-network", "YFI": "yearn-finance", "WOO": "woo-network", "SKL": "skale", "TAO": "bittensor", "IMX": "immutable-x", "SEI": "sei-network",
-    "TIA": "celestia", "JUP": "jupiter-exchange-solana", "PYTH": "pyth-network"
-}
-
 STOCK_UNIVERSE = [
     ("AAPL", "Apple"), ("MSFT", "Microsoft"), ("NVDA", "NVIDIA"), ("AMZN", "Amazon"), ("GOOGL", "Alphabet"), ("META", "Meta"), ("TSLA", "Tesla"), ("BRK-B", "Berkshire Hathaway"),
     ("JPM", "JPMorgan"), ("V", "Visa"), ("MA", "Mastercard"), ("UNH", "UnitedHealth"), ("XOM", "Exxon Mobil"), ("LLY", "Eli Lilly"), ("AVGO", "Broadcom"), ("ORCL", "Oracle"),
@@ -124,7 +107,6 @@ STOCK_UNIVERSE = [
 ]
 STOCK_NAME_MAP = {s: n for s, n in STOCK_UNIVERSE}
 
-# Fully restored Stock Domains Dictionary
 STOCK_DOMAINS = {
     "AAPL": "apple.com", "MSFT": "microsoft.com", "NVDA": "nvidia.com", "AMZN": "amazon.com", "GOOGL": "google.com", "META": "meta.com", "TSLA": "tesla.com", "BRK-B": "berkshirehathaway.com",
     "JPM": "jpmorganchase.com", "V": "visa.com", "MA": "mastercard.com", "UNH": "uhc.com", "XOM": "exxonmobil.com", "LLY": "lilly.com", "AVGO": "broadcom.com", "ORCL": "oracle.com",
@@ -135,9 +117,14 @@ STOCK_DOMAINS = {
 }
 
 def h(v): return html.escape("" if v is None else str(v), quote=True)
-def get_stock_logo(sym): return f"https://logo.clearbit.com/{STOCK_DOMAINS.get(sym.upper())}" if STOCK_DOMAINS.get(sym.upper()) else ""
+
+# Google Favicon perfectly pulls real logos for ALL stock domains
+def get_stock_logo(sym): 
+    domain = STOCK_DOMAINS.get(sym.upper())
+    return f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{domain}&size=128" if domain else ""
+
+def get_crypto_logo(sym): return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{sym.lower()}.png"
 def get_asset_icon(sym): return {"GC=F": "🥇", "SI=F": "🥈", "PL=F": "🔘", "CL=F": "🛢️", "SIG": "💎"}.get(sym.upper(), "📈")
-def pct_change(a, b): return 0.0 if b in [0, None] else ((a - b) / b) * 100.0
 def fmt_price(v, s=None): return f"€{v:,.2f}" if s == "ASML" else f"${v:,.2f}" if v >= 1 else f"${v:.4f}" if v >= 0.01 else f"${v:.8f}"
 def fmt_change(v): return f"{v:+.2f}%"
 
@@ -153,8 +140,6 @@ class Database:
     def init(self):
         c = self.conn()
         c.executescript("""
-        CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, api_key TEXT UNIQUE NOT NULL, tier TEXT NOT NULL DEFAULT 'free');
-        CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at TIMESTAMP);
         CREATE TABLE IF NOT EXISTS market_cache (cache_key TEXT PRIMARY KEY, payload_json TEXT NOT NULL, updated_at INTEGER NOT NULL);
         """)
         c.commit(); c.close()
@@ -195,93 +180,77 @@ def compute_light_signal(change): return "BUY" if change >= 2.0 else "SELL" if c
 
 def _perform_crypto_fetch():
     try:
-        # COINGECKO API: 1 fast call. Extremely reliable, no keys needed.
-        # Now fetches official images directly from CoinGecko instead of GitHub.
-        ids_needed = list(COINGECKO_IDS.values())
-        reverse_ids = {v: k for k, v in COINGECKO_IDS.items()}
-        
-        r = requests.get(
-            "https://api.coingecko.com/api/v3/coins/markets",
-            params={
-                "vs_currency": "usd",
-                "ids": ",".join(ids_needed),
-                "order": "market_cap_desc",
-                "per_page": 100,
-                "page": 1,
-                "sparkline": "false"
-            },
-            timeout=15
-        )
-        if r.status_code != 200: return
-        data = r.json()
-        
-        results = []
-        for item in data:
-            coin_id = item.get("id", "")
-            symbol = reverse_ids.get(coin_id)
-            if not symbol: continue
-            
-            price = float(item.get("current_price") or 0)
-            change = float(item.get("price_change_percentage_24h") or 0)
-            logo = item.get("image", "") # Grabs the official CoinGecko Logo
-            
-            if price > 0:
-                results.append({
-                    "symbol": symbol, "name": CRYPTO_NAME_MAP.get(symbol, item.get("name") or symbol), 
-                    "price": price, "change": change,
-                    "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                    "logo": logo, "icon": "₿"
-                })
+        # COINCAP API: 1 fast call. Extremely reliable, no geo-blocks, no rate limits.
+        r = requests.get("https://api.coincap.io/v2/assets?limit=2000", timeout=15)
+        if r.status_code == 200:
+            market_data = r.json().get("data", [])
+            market_map = {}
+            for item in market_data:
+                sym = item.get("symbol", "").upper()
+                if sym not in market_map: # Only keep the highest market cap version of a symbol
+                    market_map[sym] = item
 
-        if results: set_cached_payload("crypto_list", results)
+            results = []
+            for symbol, name in CRYPTO_TOP_90:
+                item = market_map.get(symbol)
+                if not item: continue
+                
+                price = float(item.get("priceUsd", 0) or 0)
+                change = float(item.get("changePercent24Hr", 0) or 0)
+                
+                if price > 0:
+                    results.append({
+                        "symbol": symbol, "name": name, "price": price, "change": change,
+                        "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                        "logo": get_crypto_logo(symbol), "icon": "₿"
+                    })
+
+            if results: 
+                set_cached_payload("crypto_list", results)
     except Exception as e:
         logger.error(f"Background Crypto fetch failed: {e}")
 
-
 def _perform_stock_fetch():
-    # Direct Yahoo Finance HTTP Request (Bypasses library crashes & rate limits)
+    # Direct Yahoo Finance QUOTE API (Returns official % change and includes weekend commodities)
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-    results = []
     
-    for symbol, name in STOCK_UNIVERSE:
-        try:
-            # We use range=5d to guarantee Gold/Silver/Oil show up even on a long holiday weekend
-            r = requests.get(
-                f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d", 
-                headers=headers, 
-                timeout=8
-            )
-            if r.status_code == 200:
-                data = r.json()
-                res = data.get("chart", {}).get("result", [])
-                if res:
-                    meta = res[0].get("meta", {})
-                    price = float(meta.get("regularMarketPrice", 0))
-                    prev = float(meta.get("previousClose", price))
+    try:
+        # Fetch all 50 stocks/commodities in ONE single HTTP request
+        symbols_str = ",".join([s for s, _ in STOCK_UNIVERSE])
+        url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbols_str}"
+        
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            data = r.json().get("quoteResponse", {}).get("result", [])
+            
+            # Create a lookup map
+            res_map = {}
+            for item in data:
+                sym = item.get("symbol")
+                price = float(item.get("regularMarketPrice", 0))
+                change = float(item.get("regularMarketChangePercent", 0)) # Official 24h change
+                
+                if price > 0:
+                    res_map[sym] = {
+                        "symbol": sym, "name": STOCK_NAME_MAP.get(sym, sym), "price": price, "change": change,
+                        "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                        "logo": get_stock_logo(sym), "icon": get_asset_icon(sym)
+                    }
                     
-                    if price > 0:
-                        change = pct_change(price, prev)
-                        
-                        # Apply fallback image logic for missing domains
-                        logo_url = get_stock_logo(symbol)
-                        
-                        results.append({
-                            "symbol": symbol, "name": name, "price": price, "change": change,
-                            "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                            "logo": logo_url, "icon": get_asset_icon(symbol)
-                        })
-            
-            # Sleep 0.4 seconds to gently crawl the data without triggering Bot Protections
-            time.sleep(0.4) 
-            
-        except Exception:
-            continue
+            # Ensure the output matches our exact defined order
+            results = []
+            for symbol, _ in STOCK_UNIVERSE:
+                if symbol in res_map:
+                    results.append(res_map[symbol])
 
-    if results: 
-        set_cached_payload("stock_list", results)
+            if results: 
+                set_cached_payload("stock_list", results)
+                
+    except Exception as e:
+        logger.error(f"Background Stock fetch failed: {e}")
 
 
-# Routes NEVER block. They just read the cache instantly.
+# Routes NEVER block. They just read the local SQLite cache instantly.
 def fetch_crypto_quotes_safe():
     return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
 
@@ -356,7 +325,7 @@ def live_update_script(page_type):
                 let s = document.getElementById('signal-'+safe_id); if(s) {{s.textContent = item.signal; s.className = 'signal signal-' + item.signal.toLowerCase();}}
             }});
         }} catch(e){{}}
-    }}, 30000);
+    }}, 15000);
     </script>"""
 
 @app.route("/api/live/crypto-list")
@@ -411,10 +380,10 @@ def crypto():
     
     rows = ""
     for a in page_items:
-        # If the image is empty OR fails to load, it will fallback to the Bitcoin ₿ icon
         fallback = f"<span class='asset-icon'>{h(a.get('icon','₿'))}</span>"
-        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=`{fallback}`">' if a.get("logo") else fallback
-
+        # Pure simple error handling to render emoji if icon 404s
+        media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';"><span class="asset-icon" style="display:none;">{h(a.get("icon","₿"))}</span>'
+        
         rows += f"""
         <tr>
           <td class="asset-name">
@@ -462,18 +431,20 @@ def stocks():
     rows = ""
     for a in page_items:
         safe_id = h(a["symbol"].replace("=", "_"))
-        
-        # If image breaks or doesn't exist, it uses the correct emoji (🥇 for gold, 📈 for stocks, etc)
         fallback = f"<span class='asset-icon'>{h(a.get('icon','📈'))}</span>"
-        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=`{fallback}`">' if a.get("logo") else fallback
         
+        if a.get("logo"):
+            media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';"><span class="asset-icon" style="display:none;">{h(a.get("icon","📈"))}</span>'
+        else:
+            media = fallback
+            
         rows += f"""
         <tr>
           <td class="asset-name">
             <strong class="asset-row">{media} {h(a["symbol"])}</strong>
             <span>{h(a["name"])}</span>
           </td>
-          <td id="price-{safe_id}">{fmt_price(a["price"])}</td>
+          <td id="price-{safe_id}">{fmt_price(a["price"], a["symbol"])}</td>
           <td id="change-{safe_id}" class="{a["dir"]}">{fmt_change(a["change"])}</td>
           <td><span id="signal-{safe_id}" class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td>
         </tr>
@@ -516,7 +487,7 @@ def start_background_refresh():
         
         # Step 2: Loop forever, fetching gently
         while True:
-            time.sleep(120)  # Wait 2 minutes between fetches to prevent bans
+            time.sleep(60)  # Re-fetch data safely every 60 seconds
             _perform_crypto_fetch()
             _perform_stock_fetch()
             
