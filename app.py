@@ -50,18 +50,13 @@ class Config:
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "").strip()
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "").strip()
-    REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "12"))
+    REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "15"))
     CRYPTO_CACHE_TTL = int(os.environ.get("CRYPTO_CACHE_TTL", "300"))
     STOCK_CACHE_TTL = int(os.environ.get("STOCK_CACHE_TTL", "600"))
     DETAIL_CACHE_TTL = int(os.environ.get("DETAIL_CACHE_TTL", "300"))
     PAGE_SIZE_CRYPTO = 25
     PAGE_SIZE_STOCKS = 20
     COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
-    ENABLE_BACKGROUND_REFRESH = os.environ.get("ENABLE_BACKGROUND_REFRESH", "true").lower() == "true"
-    BACKGROUND_REFRESH_SECONDS = int(os.environ.get("BACKGROUND_REFRESH_SECONDS", "180"))
-    BACKGROUND_REFRESH_LEADER = os.environ.get("BACKGROUND_REFRESH_LEADER", "true").lower() == "true"
-    DETAIL_WARM_CRYPTO = [s.strip().upper() for s in os.environ.get("DETAIL_WARM_CRYPTO", "BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,PEPE,BONK").split(",") if s.strip()]
-    DETAIL_WARM_STOCKS = [s.strip().upper() for s in os.environ.get("DETAIL_WARM_STOCKS", "AAPL,MSFT,NVDA,AMZN,GOOGL,TSLA,GC=F,CL=F").split(",") if s.strip()]
     RATE_LIMIT_STORAGE_URI = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory://")
 
 def validate_runtime_config():
@@ -150,7 +145,7 @@ STOCK_UNIVERSE = [
     ("GC=F", "Gold Futures"), ("SI=F", "Silver Futures"), ("PL=F", "Platinum Futures"), ("CL=F", "Oil Futures"), ("SIG", "Diamonds Proxy"),
 ]
 STOCK_NAME_MAP = {s: n for s, n in STOCK_UNIVERSE}
-STOCK_DOMAINS = {"AAPL": "apple.com", "MSFT": "microsoft.com", "NVDA": "nvidia.com", "AMZN": "amazon.com", "GOOGL": "google.com", "META": "meta.com", "TSLA": "tesla.com", "GC=F": None, "CL=F": None}
+STOCK_DOMAINS = {"AAPL": "apple.com", "MSFT": "microsoft.com", "NVDA": "nvidia.com", "AMZN": "amazon.com", "GOOGL": "google.com", "META": "meta.com", "TSLA": "tesla.com"}
 
 def h(v): return html.escape("" if v is None else str(v), quote=True)
 def get_stock_logo(sym): return f"https://logo.clearbit.com/{STOCK_DOMAINS.get(sym.upper())}" if STOCK_DOMAINS.get(sym.upper()) else ""
@@ -170,8 +165,8 @@ class Database:
     def init(self):
         c = self.conn()
         c.executescript("""
-        CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, api_key TEXT UNIQUE NOT NULL, tier TEXT NOT NULL DEFAULT 'free', stripe_customer_id TEXT, stripe_subscription_id TEXT, subscription_status TEXT NOT NULL DEFAULT 'inactive', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-        CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at TIMESTAMP, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE);
+        CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, api_key TEXT UNIQUE NOT NULL, tier TEXT NOT NULL DEFAULT 'free');
+        CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at TIMESTAMP);
         CREATE TABLE IF NOT EXISTS market_cache (cache_key TEXT PRIMARY KEY, payload_json TEXT NOT NULL, updated_at INTEGER NOT NULL);
         """)
         c.commit(); c.close()
@@ -188,10 +183,6 @@ class Database:
         c = self.conn()
         c.execute("INSERT INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET payload_json = excluded.payload_json, updated_at = excluded.updated_at", (key, json.dumps(payload), int(time.time())))
         c.commit(); c.close()
-    def get_user_by_session(self, token):
-        if not token: return None
-        c = self.conn(); row = c.execute("SELECT u.* FROM users u JOIN sessions s ON s.user_id = u.id WHERE s.token = ?", (token,)).fetchone(); c.close()
-        return dict(row) if row else None
 
 db = Database(Config.DATABASE)
 MEM_CACHE = {}
@@ -211,34 +202,27 @@ def set_cached_payload(key, payload):
 def compute_light_signal(change): return "BUY" if change >= 2.0 else "SELL" if change <= -2.0 else "HOLD"
 
 # ==========================================
-# ROBUST API FETCHERS (NO GEOBLOCK, NO 429)
+# NON-BLOCKING API FETCHERS (BACKGROUND ONLY)
 # ==========================================
 
-def fetch_crypto_quotes_safe(force_refresh=False):
-    cache_key = "crypto_list"
-    if not force_refresh:
-        cached = get_cached_payload(cache_key, Config.CRYPTO_CACHE_TTL)
-        if cached is not None: return cached
-
+def _perform_crypto_fetch():
     try:
-        # KUCOIN API - 1 request for ALL markets, NO geo-blocks, NO api keys needed.
+        # KUCOIN API - 1 request for ALL markets. Fast, no geo-blocks.
         r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=15)
-        r.raise_for_status()
-        data = r.json()
-        market_data = data.get("data", {}).get("ticker", [])
+        if r.status_code != 200: return
+        market_data = r.json().get("data", {}).get("ticker", [])
 
         market_map = {}
         for item in market_data:
             sym = item.get("symbol", "")
-            if sym.endswith("-USDT"):
-                market_map[sym.split("-")[0]] = item
+            if sym.endswith("-USDT"): market_map[sym.split("-")[0]] = item
 
         results = []
         for symbol, name in CRYPTO_TOP_90:
             item = market_map.get(symbol)
             if not item: continue
             price = float(item.get("last", 0))
-            change = float(item.get("changeRate", 0)) * 100.0  # Kucoin returns 0.05 for 5%
+            change = float(item.get("changeRate", 0)) * 100.0
             
             if price > 0:
                 results.append({
@@ -247,28 +231,18 @@ def fetch_crypto_quotes_safe(force_refresh=False):
                     "logo": get_crypto_logo(symbol), "icon": "₿"
                 })
 
-        if results:
-            set_cached_payload(cache_key, results)
-            return results
+        if results: set_cached_payload("crypto_list", results)
     except Exception as e:
-        logger.warning(f"Kucoin crypto fetch failed: {e}")
+        logger.error(f"Background Kucoin fetch failed: {e}")
 
-    return db.cache_get_stale(cache_key) or []
-
-
-def fetch_stock_quotes_safe(force_refresh=False):
-    cache_key = "stock_list"
-    if not force_refresh:
-        cached = get_cached_payload(cache_key, Config.STOCK_CACHE_TTL)
-        if cached is not None: return cached
-
-    symbols = [s for s, _ in STOCK_UNIVERSE]
-    symbols_str = " ".join(symbols)
-    results = []
-    
+def _perform_stock_fetch():
     try:
-        # THREADS=FALSE avoids Rate Limit 429 Errors on Render
+        symbols = [s for s, _ in STOCK_UNIVERSE]
+        symbols_str = " ".join(symbols)
+        # threads=False prevents the 429 Rate Limit block on Render
         data = yf.download(symbols_str, period="5d", interval="1d", group_by='ticker', threads=False, progress=False)
+        
+        results = []
         for symbol, name in STOCK_UNIVERSE:
             try:
                 df = data[symbol] if len(symbols) > 1 else data
@@ -286,14 +260,35 @@ def fetch_stock_quotes_safe(force_refresh=False):
             except Exception:
                 continue
 
-        if results:
-            set_cached_payload(cache_key, results)
-            return results
+        if results: set_cached_payload("stock_list", results)
     except Exception as e:
-        logger.warning(f"Bulk yfinance stock fetch failed: {e}")
+        logger.error(f"Background Stock fetch failed: {e}")
 
-    return db.cache_get_stale(cache_key) or []
+# Routes NEVER block. They just read the cache.
+def fetch_crypto_quotes_safe():
+    return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
 
+def fetch_stock_quotes_safe():
+    return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
+
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
+
+def paginate(items, page, per_page):
+    total = len(items)
+    pages = max(1, math.ceil(total / per_page)) if total > 0 else 1
+    page = max(1, min(page, pages))
+    start = (page - 1) * per_page
+    return items[start:start + per_page], total, pages, page
+
+def legal_disclaimer_html():
+    return """
+    <div class="card" style="margin-top:24px;">
+      <h3>Disclaimer</h3>
+      <p>AVA Markets provides technical market intelligence and indicator-based analysis for educational purposes only. It is not financial advice.</p>
+    </div>
+    """
 
 # ==========================================
 # FRONTEND TEMPLATING & ROUTES
@@ -301,24 +296,41 @@ def fetch_stock_quotes_safe(force_refresh=False):
 
 def nav_layout(title, content, extra_head=""):
     return render_template_string("""
-    <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>{{ title }}</title><style>{{ css }}</style>{{ extra_head|safe }}</head>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>{{ title }}</title>
+      <style>{{ css }}</style>
+      {{ extra_head|safe }}
+    </head>
     <body>
       <div class="container">
         <nav class="nav">
           <div class="logo"><a href="/">AVA Markets</a></div>
-          <div class="nav-links"><a href="/">Home</a><a href="/crypto">Crypto</a><a href="/stocks">Stocks</a></div>
+          <div class="nav-links">
+            <a href="/">Home</a>
+            <a href="/crypto">Crypto</a>
+            <a href="/stocks">Stocks</a>
+          </div>
         </nav>
         {{ content|safe }}
+        <div class="footer">AVA Markets © 2026 — Crypto, Stocks, and Commodities.</div>
       </div>
-    </body></html>
+    </body>
+    </html>
     """, title=title, content=content, css=CSS, extra_head=extra_head)
 
 def live_update_script(page_type):
     return f"""<script>
     setInterval(async () => {{
         try {{
-            const res = await fetch('/api/live/{page_type}-list'); const data = await res.json();
-            document.getElementById('live-updated').textContent = 'Last updated: ' + data.updated_at + ' UTC';
+            const res = await fetch('/api/live/{page_type}-list');
+            const data = await res.json();
+            const stamp = document.getElementById('live-updated');
+            if(stamp) stamp.textContent = 'Last updated: ' + data.updated_at + ' UTC';
+            
             data.items.forEach(item => {{
                 let safe_id = item.symbol.replace(/[^A-Za-z0-9]/g, '_');
                 let p = document.getElementById('price-'+safe_id); if(p) p.textContent = item.price_display;
@@ -326,7 +338,8 @@ def live_update_script(page_type):
                 let s = document.getElementById('signal-'+safe_id); if(s) {{s.textContent = item.signal; s.className = 'signal signal-' + item.signal.toLowerCase();}}
             }});
         }} catch(e){{}}
-    }}, 30000);</script>"""
+    }}, 30000);
+    </script>"""
 
 @app.route("/api/live/crypto-list")
 def api_live_crypto():
@@ -341,45 +354,148 @@ def api_live_stocks():
 @app.route("/")
 def home():
     cl = fetch_crypto_quotes_safe()
-    fc = cl[0] if cl else {"symbol": "N/A", "price": 0.0, "change": 0.0, "dir": "down"}
-    content = f"""<section class="hero"><div class="hero-card"><h1>Market Intelligence</h1><div class="btns"><a class="btn btn-primary" href="/crypto">Explore Crypto</a><a class="btn btn-secondary" href="/stocks">Explore Stocks</a></div></div></section>"""
-    return nav_layout("AVA Markets", content)
+    fc = cl[0] if cl else {"symbol": "Data Loading...", "price": 0.0, "change": 0.0, "dir": "down", "signal": "HOLD"}
+    
+    content = f"""
+    <section class="hero">
+      <div class="hero-card">
+        <div class="badge">AVA Markets Core</div>
+        <h1>Market Intelligence that never sleeps.</h1>
+        <p>Live-updating tracking for Crypto, Stocks, Gold, and Oil.</p>
+        <div class="btns">
+          <a class="btn btn-primary" href="/crypto">Explore Crypto</a>
+          <a class="btn btn-secondary" href="/stocks">Explore Stocks</a>
+        </div>
+      </div>
+      <div class="card featured-shell">
+        <div class="badge">Market Status</div>
+        <h2>Data Engine is Online</h2>
+        <p>Prices update securely in the background without slowing down the website.</p>
+      </div>
+    </section>
+    """
+    return nav_layout("AVA Markets - Intelligence", content)
 
 @app.route("/crypto")
 def crypto():
+    page = int(request.args.get("page", 1))
+    search = (request.args.get("q") or "").strip().lower()
+    
     assets = fetch_crypto_quotes_safe()
-    rows = "".join(f'<tr><td><strong class="asset-row"><img class="asset-logo" src="{h(a["logo"])}" onerror="this.outerHTML=`<span class=\\\'asset-icon\\\'>₿</span>`">{h(a["symbol"])}</strong></td><td id="price-{h(a["symbol"])}">{fmt_price(a["price"])}</td><td id="change-{h(a["symbol"])}" class="{a["dir"]}">{fmt_change(a["change"])}</td><td><span id="signal-{h(a["symbol"])}" class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td></tr>' for a in assets[:30])
-    content = f'<section class="section"><h1>Crypto</h1><div id="live-updated" class="live-stamp">Loading live data...</div><div class="table-shell"><table class="market-table"><tr><th>Asset</th><th>Price</th><th>24h</th><th>Signal</th></tr>{rows}</table></div></section>'
+    if search:
+        assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
+        
+    page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_CRYPTO)
+    
+    rows = ""
+    for a in page_items:
+        fallback = f"<span class='asset-icon'>{h(a.get('icon','₿'))}</span>"
+        media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.outerHTML=`{fallback}`">'
+        rows += f"""
+        <tr>
+          <td class="asset-name">
+            <strong class="asset-row">{media} {h(a["symbol"])}</strong>
+            <span>{h(a["name"])}</span>
+          </td>
+          <td id="price-{h(a["symbol"])}">{fmt_price(a["price"])}</td>
+          <td id="change-{h(a["symbol"])}" class="{a["dir"]}">{fmt_change(a["change"])}</td>
+          <td><span id="signal-{h(a["symbol"])}" class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td>
+        </tr>
+        """
+        
+    status_msg = "Live data fetching in background..." if not rows else f"Last updated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
+
+    content = f"""
+    <section class="section">
+      <h1>Crypto</h1>
+      <div id="live-updated" class="live-stamp">{status_msg}</div>
+      <div class="table-shell">
+        <table class="market-table">
+          <tr><th>Asset</th><th>Price</th><th>24h</th><th>Signal</th></tr>
+          {rows or "<tr><td colspan='4'>Cache is warming up. Refresh in 10 seconds.</td></tr>"}
+        </table>
+      </div>
+      {legal_disclaimer_html()}
+    </section>
+    """
     return nav_layout("Crypto - AVA", content, extra_head=live_update_script("crypto"))
 
 @app.route("/stocks")
 def stocks():
+    page = int(request.args.get("page", 1))
+    search = (request.args.get("q") or "").strip().lower()
+    
     assets = fetch_stock_quotes_safe()
-    rows = "".join(f'<tr><td><strong class="asset-row"><img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=`<span class=\\\'asset-icon\\\'>{h(a["icon"])}</span>`">{h(a["symbol"])}</strong></td><td id="price-{h(a["symbol"].replace("=","_"))}">{fmt_price(a["price"])}</td><td id="change-{h(a["symbol"].replace("=","_"))}" class="{a["dir"]}">{fmt_change(a["change"])}</td><td><span id="signal-{h(a["symbol"].replace("=","_"))}" class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td></tr>' for a in assets)
-    content = f'<section class="section"><h1>Stocks & Commodities</h1><div id="live-updated" class="live-stamp">Loading live data...</div><div class="table-shell"><table class="market-table"><tr><th>Asset</th><th>Price</th><th>1D</th><th>Signal</th></tr>{rows}</table></div></section>'
+    if search:
+        assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
+        
+    page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_STOCKS)
+    
+    rows = ""
+    for a in page_items:
+        safe_id = h(a["symbol"].replace("=", "_"))
+        fallback = f"<span class='asset-icon'>{h(a.get('icon','📈'))}</span>"
+        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=`{fallback}`">'
+        
+        rows += f"""
+        <tr>
+          <td class="asset-name">
+            <strong class="asset-row">{media} {h(a["symbol"])}</strong>
+            <span>{h(a["name"])}</span>
+          </td>
+          <td id="price-{safe_id}">{fmt_price(a["price"])}</td>
+          <td id="change-{safe_id}" class="{a["dir"]}">{fmt_change(a["change"])}</td>
+          <td><span id="signal-{safe_id}" class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td>
+        </tr>
+        """
+
+    status_msg = "Live data fetching in background..." if not rows else f"Last updated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
+
+    content = f"""
+    <section class="section">
+      <h1>Stocks & Commodities</h1>
+      <div id="live-updated" class="live-stamp">{status_msg}</div>
+      <div class="table-shell">
+        <table class="market-table">
+          <tr><th>Asset</th><th>Price</th><th>1D</th><th>Signal</th></tr>
+          {rows or "<tr><td colspan='4'>Cache is warming up. Refresh in 10 seconds.</td></tr>"}
+        </table>
+      </div>
+      {legal_disclaimer_html()}
+    </section>
+    """
     return nav_layout("Stocks - AVA", content, extra_head=live_update_script("stocks"))
 
+
 # ==========================================
-# BACKGROUND BOOTER (PREVENTS 502 ERRORS)
+# BACKGROUND BOOTER (PREVENTS 502/TIMEOUTS)
 # ==========================================
+
 _bg_started = False
+
 def start_background_refresh():
     global _bg_started
     if _bg_started: return
-    def loop():
-        try: fetch_crypto_quotes_safe(force_refresh=True)
-        except: pass
-        try: fetch_stock_quotes_safe(force_refresh=True)
-        except: pass
+    
+    def background_loop():
+        # Step 1: Initial load right after the server boots safely
+        logger.info("Background thread: Fetching initial data...")
+        _perform_crypto_fetch()
+        _perform_stock_fetch()
+        logger.info("Background thread: Initial data cached successfully.")
+        
+        # Step 2: Loop forever, fetching gently
         while True:
-            time.sleep(120)
-            try: fetch_crypto_quotes_safe(force_refresh=True)
-            except: pass
-            try: fetch_stock_quotes_safe(force_refresh=True)
-            except: pass
-    threading.Thread(target=loop, daemon=True).start()
+            time.sleep(120)  # Wait 2 minutes between fetches to prevent bans
+            _perform_crypto_fetch()
+            _perform_stock_fetch()
+            
+    # Daemon=True means this thread will die gracefully when the server restarts
+    t = threading.Thread(target=background_loop, daemon=True)
+    t.start()
     _bg_started = True
 
+# Start the background fetcher immediately on boot
 if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not Config.DEBUG:
     start_background_refresh()
 
