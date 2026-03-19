@@ -210,90 +210,62 @@ def set_cached_payload(key, payload):
 # ==========================================
 
 def _perform_crypto_fetch():
-    try:
-        # COINGECKO API: 1 fast call. Extremely reliable, no keys needed.
-        ids_needed = list(COINGECKO_IDS.values())
-        reverse_ids = {v: k for k, v in COINGECKO_IDS.items()}
-        
-        r = requests.get(
-            "https://api.coingecko.com/api/v3/coins/markets",
-            params={
-                "vs_currency": "usd",
-                "ids": ",".join(ids_needed),
-                "order": "market_cap_desc",
-                "per_page": 100,
-                "page": 1,
-                "sparkline": "false"
-            },
-            timeout=15
-        )
-        if r.status_code != 200: return
-        data = r.json()
-        
-        results = []
-        for item in data:
-            coin_id = item.get("id", "")
-            symbol = reverse_ids.get(coin_id)
-            if not symbol: continue
-            
-            price = float(item.get("current_price") or 0)
-            change = float(item.get("price_change_percentage_24h") or 0)
-            
-            if price > 0:
-                results.append({
-                    "symbol": symbol, "name": CRYPTO_NAME_MAP.get(symbol, item.get("name") or symbol), 
-                    "price": price, "change": change,
-                    "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                    "logo": get_crypto_logo(symbol), "icon": "₿"
-                })
-
-        if results: set_cached_payload("crypto_list", results)
-    except Exception as e:
-        logger.error(f"Background Crypto fetch failed: {e}")
-
-def _perform_stock_fetch():
-    # Direct Yahoo Finance HTTP Request (Bypasses yfinance library crashes & rate limits)
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     results = []
-    
-    for symbol, name in STOCK_UNIVERSE:
-        try:
-            r = requests.get(
-                f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d", 
-                headers=headers, 
-                timeout=8
-            )
-            if r.status_code == 200:
-                data = r.json()
-                res = data.get("chart", {}).get("result", [])
-                if res:
-                    meta = res[0].get("meta", {})
-                    price = float(meta.get("regularMarketPrice", 0))
-                    prev = float(meta.get("previousClose", price))
-                    
-                    if price > 0:
-                        change = pct_change(price, prev)
-                        results.append({
-                            "symbol": symbol, "name": name, "price": price, "change": change,
-                            "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                            "logo": get_stock_logo(symbol), "icon": get_asset_icon(symbol)
-                        })
-            
-            # Sleep 0.5 seconds to gently crawl the data without triggering Bot Protections
-            time.sleep(0.5) 
-            
-        except Exception:
-            continue
+    try:
+        # Primary API: KUCOIN (Extremely fast, no geo-blocks, no rate limits)
+        r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=15)
+        if r.status_code == 200:
+            market_data = r.json().get("data", {}).get("ticker", [])
+            market_map = {}
+            for item in market_data:
+                sym = item.get("symbol", "")
+                if sym.endswith("-USDT"):
+                    market_map[sym.split("-")[0]] = item
 
-    if results: set_cached_payload("stock_list", results)
+            for symbol, name in CRYPTO_TOP_90:
+                item = market_map.get(symbol)
+                if not item: continue
+                
+                price = float(item.get("last", 0))
+                change = float(item.get("changeRate", 0)) * 100.0
+                
+                if price > 0:
+                    results.append({
+                        "symbol": symbol, "name": name, "price": price, "change": change,
+                        "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                        "logo": get_crypto_logo(symbol), "icon": "₿"
+                    })
+    except Exception as e:
+        logger.error(f"KuCoin fetch failed: {e}")
 
-# Routes NEVER block. They just read the cache instantly.
-def fetch_crypto_quotes_safe():
-    return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
+    # Fallback API: Direct Yahoo HTTP (If KuCoin ever fails, this guarantees data)
+    if not results:
+        logger.info("Using Yahoo Finance fallback for Crypto...")
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        for symbol, name in CRYPTO_TOP_90:
+            try:
+                r = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}-USD?interval=1d&range=2d", headers=headers, timeout=5)
+                if r.status_code == 200:
+                    res = r.json().get("chart", {}).get("result", [])
+                    if res:
+                        meta = res[0].get("meta", {})
+                        price = float(meta.get("regularMarketPrice", 0))
+                        prev = float(meta.get("previousClose", price))
+                        if price > 0:
+                            change = pct_change(price, prev)
+                            results.append({
+                                "symbol": symbol, "name": name, "price": price, "change": change,
+                                "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                                "logo": get_crypto_logo(symbol), "icon": "₿"
+                            })
+                time.sleep(0.1) # Gentle pacing
+            except Exception:
+                continue
 
-def fetch_stock_quotes_safe():
-    return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
-
+    if results: 
+        set_cached_payload("crypto_list", results)
+    else:
+        logger.error("All crypto fetchers failed.")
 
 # ==========================================
 # HELPER FUNCTIONS
