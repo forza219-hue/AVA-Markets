@@ -6,24 +6,18 @@ import math
 import html
 import sqlite3
 import secrets
-import bcrypt
 import logging
 import random
 import threading
 import requests
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import wraps
 from urllib.parse import urlparse, quote_plus
 
 from dotenv import load_dotenv
-from flask import Flask, request, redirect, make_response, render_template_string, g, jsonify, abort
+from flask import Flask, request, redirect, make_response, render_template_string, jsonify
 from werkzeug.middleware.proxy_fix import ProxyFix
-
-try:
-    import stripe
-except Exception:
-    stripe = None
 
 try:
     from flask_limiter import Limiter
@@ -44,26 +38,18 @@ class Config:
     DATABASE = os.environ.get("DATABASE_URL", "ava_markets_core.db").strip()
     SECRET_KEY = os.environ.get("SECRET_KEY", "fallback_secret_key").strip()
     DOMAIN = os.environ.get("DOMAIN", "").strip().rstrip("/")
-    STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
-    STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
-    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin").strip()
-    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin").strip()
-    REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "8"))
     CRYPTO_CACHE_TTL = 300
     STOCK_CACHE_TTL = 600
-    DETAIL_CACHE_TTL = 300
     PAGE_SIZE_CRYPTO = 25
     PAGE_SIZE_STOCKS = 20
-    COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
     RATE_LIMIT_STORAGE_URI = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory://")
-
-if stripe and Config.STRIPE_SECRET_KEY: stripe.api_key = Config.STRIPE_SECRET_KEY
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["SECRET_KEY"] = Config.SECRET_KEY
 
-if Limiter: limiter = Limiter(key_func=get_remote_address, app=app, storage_uri=Config.RATE_LIMIT_STORAGE_URI, default_limits=["240 per hour"])
+if Limiter: 
+    limiter = Limiter(key_func=get_remote_address, app=app, storage_uri=Config.RATE_LIMIT_STORAGE_URI, default_limits=["240 per hour"])
 else: 
     class _NoopLimiter: 
         def limit(self, *args, **kwargs): return lambda fn: fn
@@ -71,7 +57,7 @@ else:
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-:root{--bg:#0b0f19;--bg2:#121826;--card:rgba(255,255,255,.05);--border:rgba(255,255,255,.09);--text:#f8fafc;--muted:#94a3b8;--blue:#2563eb;--blue2:#60a5fa;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--shadow:0 24px 60px rgba(0,0,0,.35);}
+:root{--bg:#0b0f19;--bg2:#121826;--card:rgba(255,255,255,.05);--border:rgba(255,255,255,.09);--text:#f8fafc;--muted:#94a3b8;--blue:#2563eb;--blue2:#60a5fa;--green:#22c55e;--red:#ef4444;--shadow:0 24px 60px rgba(0,0,0,.35);}
 *{box-sizing:border-box} html{scroll-behavior:smooth}
 body{margin:0;font-family:'Inter',sans-serif;color:var(--text);background:radial-gradient(circle at top left, rgba(37,99,235,.16), transparent 28%),radial-gradient(circle at top right, rgba(96,165,250,.12), transparent 24%),linear-gradient(145deg,var(--bg),var(--bg2));}
 a{text-decoration:none;color:inherit} .container{max-width:1240px;margin:0 auto;padding:0 24px}
@@ -79,35 +65,23 @@ a{text-decoration:none;color:inherit} .container{max-width:1240px;margin:0 auto;
 .logo{font-size:1.3rem;font-weight:800;background:linear-gradient(90deg,#fff,var(--blue2),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .nav-links{display:flex;gap:16px;flex-wrap:wrap} .nav-links a{color:var(--muted);font-weight:600} .nav-links a:hover{color:var(--text)}
 .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:28px;align-items:center;padding:72px 0 48px}
-.hero-card,.card,.table-shell,.price-card,.dashboard-card{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow);}
-.hero-card{padding:36px} .card,.price-card,.dashboard-card{padding:22px}
+.hero-card,.card,.table-shell{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow);}
+.hero-card{padding:36px} .card{padding:22px}
 .badge{display:inline-block;padding:8px 14px;border-radius:999px;background:rgba(37,99,235,.14);border:1px solid rgba(96,165,250,.24);color:#bfdbfe;font-size:.88rem;font-weight:700;margin-bottom:18px;}
-h1{font-size:clamp(2.4rem,5vw,4.4rem);line-height:1.02;margin:0 0 18px} h2{margin:0 0 14px} .section{padding:30px 0 72px} .section-title{font-size:2rem;margin:0 0 14px}
-p{color:var(--muted);line-height:1.7;font-size:1.02rem} .section-sub{max-width:820px;margin:0 0 24px;color:var(--muted)}
+h1{font-size:clamp(2.4rem,5vw,4.4rem);line-height:1.02;margin:0 0 18px} h2{margin:0 0 14px} .section{padding:30px 0 72px}
+p{color:var(--muted);line-height:1.7;font-size:1.02rem}
 .btns{display:flex;gap:14px;flex-wrap:wrap;margin-top:20px}
 .btn{display:inline-flex;align-items:center;justify-content:center;padding:14px 18px;border-radius:14px;font-weight:700;border:1px solid transparent;cursor:pointer;}
 .btn-primary{background:linear-gradient(90deg,var(--blue2),var(--blue));color:#fff} .btn-secondary{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10);color:var(--text)}
-.market-grid,.dashboard-grid{display:grid;gap:18px} .market-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))} .dashboard-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
-.table-shell{overflow:hidden} .market-table{width:100%;border-collapse:collapse} .market-table th,.market-table td{padding:16px 14px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left;vertical-align:top}
+.table-shell{overflow:hidden} .market-table{width:100%;border-collapse:collapse} .market-table th,.market-table td{padding:16px 14px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left;}
 .market-table th{color:#cbd5e1;background:rgba(255,255,255,.02);font-size:.92rem}
 .asset-name strong{display:block} .asset-name span{display:block;color:var(--muted);font-size:.85rem;margin-top:4px}
 .up{color:var(--green)} .down{color:var(--red)}
 .signal{display:inline-flex;padding:8px 12px;border-radius:999px;font-weight:700;font-size:.82rem}
-.signal-buy{background:rgba(34,197,94,.14);color:#86efac} .signal-hold{background:rgba(245,158,11,.14);color:#fde68a} .signal-sell{background:rgba(239,68,68,.14);color:#fca5a5} .signal-locked{background:rgba(255,255,255,.08);color:#cbd5e1}
-.candle-box{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));border:1px solid rgba(255,255,255,.06);border-radius:18px;padding:16px;}
-.candles{height:170px;display:flex;align-items:flex-end;gap:6px} .candle{flex:1;position:relative;height:140px}
-.wick{position:absolute;left:50%;transform:translateX(-50%);width:2px;background:#cbd5e1;border-radius:999px} .body{position:absolute;left:50%;transform:translateX(-50%);width:8px;border-radius:4px}
-.body.green{background:linear-gradient(180deg,#34d399,#16a34a)} .body.red{background:linear-gradient(180deg,#f87171,#dc2626)}
-.form-shell{display:flex;justify-content:center;align-items:center;min-height:70vh} .form-card{width:100%;max-width:460px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow);padding:30px;}
-.form-card input{width:100%;padding:14px 16px;margin:10px 0;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);color:var(--text);outline:none;}
-.form-card button{width:100%;padding:14px 18px;margin-top:10px;border:none;border-radius:14px;background:linear-gradient(90deg,var(--blue2),var(--blue));color:#fff;font-weight:700;cursor:pointer;}
-.error{color:#fca5a5;margin-top:10px} .key{background:#0f172a;padding:12px;border-radius:12px;word-break:break-all;font-family:monospace;font-size:13px}
-.tier{display:inline-flex;padding:8px 12px;border-radius:999px;background:rgba(37,99,235,.14);color:#bfdbfe;font-weight:700}
-.footer{padding:30px 0 60px;color:var(--muted);text-align:center}
-.asset-row{display:flex;align-items:center;gap:10px;} .asset-logo{width:24px;height:24px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);flex-shrink:0;}
-.asset-icon{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
-.pagination{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;align-items:center} .page-link{padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text);font-weight:700}
-.search-box{width:100%;max-width:420px;padding:14px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);color:var(--text);outline:none;}
+.signal-buy{background:rgba(34,197,94,.14);color:#86efac} .signal-hold{background:rgba(245,158,11,.14);color:#fde68a} .signal-sell{background:rgba(239,68,68,.14);color:#fca5a5}
+.asset-row{display:flex;align-items:center;gap:10px;} .asset-logo{width:24px;height:24px;border-radius:50%;object-fit:cover;}
+.asset-icon{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;}
+.pagination{display:flex;gap:10px;margin-top:22px;} .page-link{padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text);font-weight:700}
 @media (max-width: 900px){ .hero{grid-template-columns:1fr} .nav{flex-direction:column;gap:14px} .nav-links{justify-content:center} }
 """
 
@@ -124,20 +98,6 @@ CRYPTO_TOP_90 = [
     ("MASK", "Mask Network"), ("YFI", "yearn.finance"), ("WOO", "WOO"), ("SKL", "SKALE"),
 ]
 CRYPTO_NAME_MAP = {s: n for s, n in CRYPTO_TOP_90}
-
-COINGECKO_IDS = {
-    "BTC": "bitcoin", "ETH": "ethereum", "BNB": "binancecoin", "SOL": "solana", "XRP": "ripple", "DOGE": "dogecoin", "ADA": "cardano", "AVAX": "avalanche-2", "LINK": "chainlink", "DOT": "polkadot",
-    "MATIC": "matic-network", "LTC": "litecoin", "BCH": "bitcoin-cash", "ATOM": "cosmos", "UNI": "uniswap", "NEAR": "near", "APT": "aptos", "ARB": "arbitrum", "OP": "optimism", "SUI": "sui",
-    "PEPE": "pepe", "SHIB": "shiba-inu", "TRX": "tron", "ETC": "ethereum-classic", "XLM": "stellar", "HBAR": "hedera-hashgraph", "ICP": "internet-computer", "FIL": "filecoin",
-    "INJ": "injective-protocol", "RNDR": "render-token", "AAVE": "aave", "BONK": "bonk", "WIF": "dogwifhat", "FET": "fetch-ai", "RUNE": "thorchain", "MKR": "maker", "ALGO": "algorand",
-    "VET": "vechain", "EGLD": "elrond-erd-2", "THETA": "theta-token", "SAND": "the-sandbox", "MANA": "decentraland", "AXS": "axie-infinity", "GRT": "the-graph", "FLOW": "flow",
-    "KAS": "kaspa", "KAVA": "kava", "DYDX": "dydx", "WLD": "worldcoin-wld", "ARKM": "arkham", "STRK": "starknet", "ENA": "ethena", "ONDO": "ondo-finance", "JASMY": "jasmycoin",
-    "LDO": "lido-dao", "CRV": "curve-dao-token", "SNX": "havven", "COMP": "compound-governance-token", "1INCH": "1inch", "BAT": "basic-attention-token", "ZEC": "zcash", "DASH": "dash",
-    "CHZ": "chiliz", "ROSE": "oasis-network", "QTUM": "qtum", "IOTA": "iota", "ZIL": "zilliqa", "KSM": "kusama", "GMT": "stepn", "BLUR": "blur", "ACE": "fusionist", "NEO": "neo",
-    "CFX": "conflux-token", "FTM": "fantom", "GALA": "gala", "LRC": "loopring", "ENS": "ethereum-name-service", "SXP": "sxp", "HOT": "holotoken", "ANKR": "ankr", "ICX": "icon",
-    "SC": "siacoin", "CKB": "nervos-network", "MASK": "mask-network", "YFI": "yearn-finance", "WOO": "woo-network", "SKL": "skale", "TAO": "bittensor", "IMX": "immutable-x", "SEI": "sei-network",
-    "TIA": "celestia", "JUP": "jupiter-exchange-solana", "PYTH": "pyth-network"
-}
 
 STOCK_UNIVERSE = [
     ("AAPL", "Apple"), ("MSFT", "Microsoft"), ("NVDA", "NVIDIA"), ("AMZN", "Amazon"), ("GOOGL", "Alphabet"), ("META", "Meta"), ("TSLA", "Tesla"), ("BRK-B", "Berkshire Hathaway"),
@@ -171,8 +131,6 @@ class Database:
     def init(self):
         c = self.conn()
         c.executescript("""
-        CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, api_key TEXT UNIQUE NOT NULL, tier TEXT NOT NULL DEFAULT 'free');
-        CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at TIMESTAMP);
         CREATE TABLE IF NOT EXISTS market_cache (cache_key TEXT PRIMARY KEY, payload_json TEXT NOT NULL, updated_at INTEGER NOT NULL);
         """)
         c.commit(); c.close()
@@ -205,14 +163,24 @@ def set_cached_payload(key, payload):
     MEM_CACHE[key] = {"data": payload, "updated_at": now}
     db.cache_set(key, payload)
 
+def compute_light_signal(change): return "BUY" if change >= 2.0 else "SELL" if change <= -2.0 else "HOLD"
+
+# ==========================================
+# CACHE GETTERS (USED BY ROUTES TO PREVENT CRASHES)
+# ==========================================
+def fetch_crypto_quotes_safe():
+    return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
+
+def fetch_stock_quotes_safe():
+    return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
+
 # ==========================================
 # NON-BLOCKING API FETCHERS (BACKGROUND ONLY)
 # ==========================================
 
 def _perform_crypto_fetch():
-    results = []
     try:
-        # Primary API: KUCOIN (Extremely fast, no geo-blocks, no rate limits)
+        # KUCOIN API - 1 request for ALL markets. Fast, no geo-blocks.
         r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=15)
         if r.status_code == 200:
             market_data = r.json().get("data", {}).get("ticker", [])
@@ -222,6 +190,7 @@ def _perform_crypto_fetch():
                 if sym.endswith("-USDT"):
                     market_map[sym.split("-")[0]] = item
 
+            results = []
             for symbol, name in CRYPTO_TOP_90:
                 item = market_map.get(symbol)
                 if not item: continue
@@ -235,37 +204,50 @@ def _perform_crypto_fetch():
                         "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
                         "logo": get_crypto_logo(symbol), "icon": "₿"
                     })
-    except Exception as e:
-        logger.error(f"KuCoin fetch failed: {e}")
 
-    # Fallback API: Direct Yahoo HTTP (If KuCoin ever fails, this guarantees data)
-    if not results:
-        logger.info("Using Yahoo Finance fallback for Crypto...")
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-        for symbol, name in CRYPTO_TOP_90:
-            try:
-                r = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}-USD?interval=1d&range=2d", headers=headers, timeout=5)
-                if r.status_code == 200:
-                    res = r.json().get("chart", {}).get("result", [])
-                    if res:
-                        meta = res[0].get("meta", {})
-                        price = float(meta.get("regularMarketPrice", 0))
-                        prev = float(meta.get("previousClose", price))
-                        if price > 0:
-                            change = pct_change(price, prev)
-                            results.append({
-                                "symbol": symbol, "name": name, "price": price, "change": change,
-                                "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                                "logo": get_crypto_logo(symbol), "icon": "₿"
-                            })
-                time.sleep(0.1) # Gentle pacing
-            except Exception:
-                continue
+            if results: 
+                set_cached_payload("crypto_list", results)
+                return
+    except Exception as e:
+        logger.error(f"Background KuCoin fetch failed: {e}")
+
+def _perform_stock_fetch():
+    # Direct Yahoo Finance HTTP Request (Bypasses library crashes & rate limits)
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    results = []
+    
+    for symbol, name in STOCK_UNIVERSE:
+        try:
+            r = requests.get(
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=2d", 
+                headers=headers, 
+                timeout=8
+            )
+            if r.status_code == 200:
+                data = r.json()
+                res = data.get("chart", {}).get("result", [])
+                if res:
+                    meta = res[0].get("meta", {})
+                    price = float(meta.get("regularMarketPrice", 0))
+                    prev = float(meta.get("previousClose", price))
+                    
+                    if price > 0:
+                        change = pct_change(price, prev)
+                        results.append({
+                            "symbol": symbol, "name": name, "price": price, "change": change,
+                            "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                            "logo": get_stock_logo(symbol), "icon": get_asset_icon(symbol)
+                        })
+            
+            # Sleep 0.5 seconds to gently crawl the data without triggering Bot Protections
+            time.sleep(0.5) 
+            
+        except Exception:
+            continue
 
     if results: 
-        set_cached_payload("crypto_list", results)
-    else:
-        logger.error("All crypto fetchers failed.")
+        set_cached_payload("stock_list", results)
+
 
 # ==========================================
 # HELPER FUNCTIONS
@@ -374,10 +356,14 @@ def home():
 
 @app.route("/crypto")
 def crypto():
-    page = int(request.args.get("page", 1))
+    try:
+        page = int(request.args.get("page", 1))
+    except:
+        page = 1
+        
     search = (request.args.get("q") or "").strip().lower()
-    
     assets = fetch_crypto_quotes_safe()
+    
     if search:
         assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
         
@@ -418,10 +404,14 @@ def crypto():
 
 @app.route("/stocks")
 def stocks():
-    page = int(request.args.get("page", 1))
+    try:
+        page = int(request.args.get("page", 1))
+    except:
+        page = 1
+        
     search = (request.args.get("q") or "").strip().lower()
-    
     assets = fetch_stock_quotes_safe()
+    
     if search:
         assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
         
@@ -497,5 +487,3 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not Config.DEBUG:
 
 if __name__ == "__main__":
     app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
-
-def compute_light_signal(change): return "BUY" if change >= 2.0 else "SELL" if change <= -2.0 else "HOLD"
