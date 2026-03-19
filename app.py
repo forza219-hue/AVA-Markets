@@ -338,33 +338,8 @@ def get_stock_logo(symbol):
     return f"https://logo.clearbit.com/{domain}"
 
 
-def get_crypto_logo(symbol, provider_logo=None):
-    if provider_logo:
-        return provider_logo
-    symbol = symbol.lower()
-    candidates = [
-        f"https://cryptoicons.org/api/icon/{symbol}/200",
-        f"https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/{symbol}.png",
-        f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{symbol}.png",
-    ]
-    return candidates[0]
-
-
-def get_crypto_logo_candidates(symbol, provider_logo=None):
-    symbol = symbol.lower()
-    candidates = []
-    if provider_logo:
-        candidates.append(provider_logo)
-    candidates.extend([
-        f"https://cryptoicons.org/api/icon/{symbol}/200",
-        f"https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/{symbol}.png",
-        f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{symbol}.png",
-    ])
-    seen = []
-    for c in candidates:
-        if c and c not in seen:
-            seen.append(c)
-    return seen
+def get_crypto_logo(symbol):
+    return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{symbol.lower()}.png"
 
 
 def get_asset_icon(symbol):
@@ -919,85 +894,6 @@ def normalize_dt_to_ts(value):
     except: return None
 
 
-def fetch_crypto_candles(symbol, interval="15m", limit=80):
-    # Bybit intervals: 15, 60 (for 1h), 240 (for 4h)
-    interval_map = {"15m": "15", "1h": "60", "4h": "240"}
-    bybit_sym = f"{symbol.upper()}USDT"
-    
-    try:
-        r = requests.get(
-            "https://api.bybit.com/v5/market/kline",
-            params={
-                "category": "spot",
-                "symbol": bybit_sym,
-                "interval": interval_map.get(interval, "15"),
-                "limit": limit
-            },
-            timeout=Config.REQUESTS_TIMEOUT
-        )
-        r.raise_for_status()
-        data = r.json()
-
-        if data.get("retCode") != 0:
-            return None
-
-        raw_candles = data.get("result", {}).get("list", [])
-        
-        # Bybit returns candles newest-to-oldest. We MUST reverse them!
-        raw_candles.reverse()
-
-        candles = []
-        for row in raw_candles:
-            candles.append({
-                "ts": int(row[0]) // 1000,
-                "open": float(row[1]),
-                "high": float(row[2]),
-                "low": float(row[3]),
-                "close": float(row[4])
-            })
-        return candles or None
-    except Exception as e:
-        logger.warning(f"Bybit candles failed for {symbol}: {e}")
-        return None
-
-
-def fetch_stock_candles(symbol, period="6mo", interval="1d"):
-    try:
-        ticker = yf.Ticker(symbol.upper())
-        hist = ticker.history(period=period, interval=interval, auto_adjust=False)
-        if hist is None or hist.empty: return None
-
-        candles = []
-        for idx, row in hist.tail(120).iterrows():
-            ts = normalize_dt_to_ts(idx.to_pydatetime()) or int(time.time())
-            candles.append({
-                "ts": ts,
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"])
-            })
-        return candles or None
-    except Exception:
-        return None
-
-
-def fetch_crypto_multi_timeframe(symbol):
-    return {
-        "15m": fetch_crypto_candles(symbol, interval="15m", limit=100),
-        "1h": fetch_crypto_candles(symbol, interval="1h", limit=100),
-        "4h": fetch_crypto_candles(symbol, interval="4h", limit=100),
-    }
-
-
-def fetch_stock_multi_timeframe(symbol):
-    return {
-        "1d": fetch_stock_candles(symbol, period="6mo", interval="1d"),
-        "1wk": fetch_stock_candles(symbol, period="2y", interval="1wk"),
-        "1mo": fetch_stock_candles(symbol, period="5y", interval="1mo"),
-    }
-
-
 def compute_rsi(closes, period=14):
     if len(closes) < period + 1: return 50.0
     gains, losses = [], []
@@ -1132,7 +1028,7 @@ def detect_market_regime(feats):
 def ava_hypothesis_engine(candles, timeframe="1h", signal_type="short_term"):
     feats = extract_market_features(candles)
     if not feats:
-        return {"signal": "HOLD", "confidence": 0.50, "confidence_label": "Weak", "trend_state": "Neutral", "trend_strength": "Low", "forecast_trend": "Stable", "projected_change": "+0.00%", "regime": "unknown", "dominant_factors": ["insufficient_data"], "reasoning": "Not enough candle history for AVA Brain v2.", "explanations": ["Insufficient data for full signal model."], "score": 0}
+        return {"signal": "HOLD", "confidence": 0.50, "confidence_label": "Weak", "trend_state": "Neutral", "trend_strength": "Low", "forecast_trend": "Stable", "projected_change": "+0.00%", "regime": "unknown", "dominant_factors": ["insufficient_data"], "reasoning": "Not enough candle history for AVA Brain.", "explanations": ["Insufficient data."], "score": 0}
 
     regime = detect_market_regime(feats)
     score = 0
@@ -1170,11 +1066,6 @@ def ava_hypothesis_engine(candles, timeframe="1h", signal_type="short_term"):
 
     if regime == "trending_up": score += 1; explanations.append("Market regime is trending up."); factors.append("regime_trending_up")
     elif regime == "trending_down": score -= 1; explanations.append("Market regime is trending down."); factors.append("regime_trending_down")
-    elif regime == "range_bound": explanations.append("Market regime is range-bound, so breakout conviction is lower."); factors.append("regime_range_bound")
-    elif regime == "high_vol_breakout": explanations.append("Market regime is high-volatility breakout; signal quality may be stronger but risk is elevated."); factors.append("regime_high_vol_breakout")
-    elif regime == "low_vol_compression": explanations.append("Market regime is low-volatility compression; breakout risk is building."); factors.append("regime_low_vol_compression")
-
-    if feats["atr_pct"] > 5: score -= 1; explanations.append("ATR is elevated, increasing execution risk."); factors.append("atr_elevated")
 
     if score >= 5: signal = "BUY"
     elif score <= -5: signal = "SELL"
@@ -1182,9 +1073,7 @@ def ava_hypothesis_engine(candles, timeframe="1h", signal_type="short_term"):
 
     confidence = min(0.90, max(0.50, 0.52 + abs(score) * 0.045))
     c_label = confidence_label(confidence)
-
     trend_strength = "High" if abs(score) >= 7 else "Medium" if abs(score) >= 4 else "Low"
-
     if score > 1: trend_state = "Bullish"; forecast_trend = "Upward"
     elif score < -1: trend_state = "Bearish"; forecast_trend = "Downward"
     else: trend_state = "Neutral"; forecast_trend = "Stable"
@@ -1265,87 +1154,132 @@ def get_stale_payload(cache_key):
     return db.cache_get_stale(cache_key)
 
 
+def fetch_crypto_candles(symbol, interval="15m", limit=80):
+    yf_interval_map = {"15m": ("15m", "5d"), "1h": ("60m", "20d"), "4h": ("1d", "3mo")}
+    yf_sym = f"{symbol.upper()}-USD"
+    y_int, y_per = yf_interval_map.get(interval, ("15m", "5d"))
+    
+    try:
+        df = yf.download(yf_sym, interval=y_int, period=y_per, progress=False)
+        if df is None or df.empty: return None
+        
+        candles = []
+        for idx, row in df.tail(limit).iterrows():
+            ts = normalize_dt_to_ts(idx.to_pydatetime()) or int(time.time())
+            # Safely handle multi-index columns if newer yfinance version applies them
+            open_p = float(row["Open"].iloc[0]) if isinstance(row["Open"], pd.Series) else float(row["Open"])
+            high_p = float(row["High"].iloc[0]) if isinstance(row["High"], pd.Series) else float(row["High"])
+            low_p = float(row["Low"].iloc[0]) if isinstance(row["Low"], pd.Series) else float(row["Low"])
+            close_p = float(row["Close"].iloc[0]) if isinstance(row["Close"], pd.Series) else float(row["Close"])
+            
+            candles.append({"ts": ts, "open": open_p, "high": high_p, "low": low_p, "close": close_p})
+        return candles or None
+    except Exception as e:
+        logger.warning(f"yfinance crypto candles failed for {symbol}: {e}")
+        return None
+
+
+def fetch_stock_candles(symbol, period="6mo", interval="1d"):
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        hist = ticker.history(period=period, interval=interval, auto_adjust=False)
+        if hist is None or hist.empty: return None
+
+        candles = []
+        for idx, row in hist.tail(120).iterrows():
+            ts = normalize_dt_to_ts(idx.to_pydatetime()) or int(time.time())
+            candles.append({
+                "ts": ts,
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"])
+            })
+        return candles or None
+    except Exception:
+        return None
+
+
+def fetch_crypto_multi_timeframe(symbol):
+    return {
+        "15m": fetch_crypto_candles(symbol, interval="15m", limit=100),
+        "1h": fetch_crypto_candles(symbol, interval="1h", limit=100),
+        "4h": fetch_crypto_candles(symbol, interval="4h", limit=100),
+    }
+
+
+def fetch_stock_multi_timeframe(symbol):
+    return {
+        "1d": fetch_stock_candles(symbol, period="6mo", interval="1d"),
+        "1wk": fetch_stock_candles(symbol, period="2y", interval="1wk"),
+        "1mo": fetch_stock_candles(symbol, period="5y", interval="1mo"),
+    }
+
+
 def fetch_crypto_quotes_safe(force_refresh=False):
     cache_key = "crypto_list"
-
     if not force_refresh:
         cached = get_cached_payload(cache_key, Config.CRYPTO_CACHE_TTL)
-        if cached is not None:
-            return cached
+        if cached is not None: return cached
+
+    symbols_map = {f"{s}-USD": s for s, _ in CRYPTO_TOP_90}
+    symbols_str = " ".join(symbols_map.keys())
+    results = []
 
     try:
-        # Fetches all spot crypto markets in ONE fast call via Bybit V5
-        r = requests.get(
-            "https://api.bybit.com/v5/market/tickers",
-            params={"category": "spot"},
-            timeout=Config.REQUESTS_TIMEOUT
-        )
-        r.raise_for_status()
-        data = r.json()
-
-        if data.get("retCode") == 0:
-            market_map = {item["symbol"]: item for item in data["result"]["list"]}
-            
-            results = []
-            for symbol, name in CRYPTO_TOP_90:
-                bybit_sym = f"{symbol}USDT"
-                item = market_map.get(bybit_sym)
-                if not item:
-                    continue
+        data = yf.download(symbols_str, period="7d", interval="1d", group_by='ticker', threads=True, progress=False)
+        for yf_sym, original_sym in symbols_map.items():
+            try:
+                df = data[yf_sym] if len(symbols_map) > 1 else data
+                series = df['Close'].ffill().dropna()
                 
-                price = float(item.get("lastPrice", 0))
-                change = float(item.get("price24hPcnt", 0)) * 100.0
-
-                if price <= 0:
-                    continue
-                    
+                if len(series) < 1: continue
+                last_close = float(series.iloc[-1])
+                prev_close = float(series.iloc[-2]) if len(series) > 1 else last_close
+                change = pct_change(last_close, prev_close)
+                
                 results.append({
-                    "symbol": symbol,
-                    "name": name,
-                    "price": price,
+                    "symbol": original_sym,
+                    "name": CRYPTO_NAME_MAP.get(original_sym, original_sym),
+                    "price": last_close,
                     "change": change,
                     "dir": "up" if change >= 0 else "down",
                     "signal": compute_light_signal(change),
-                    "logo": get_crypto_logo(symbol),
-                    "logo_candidates": get_crypto_logo_candidates(symbol),
+                    "logo": get_crypto_logo(original_sym),
+                    "icon": "₿"
                 })
-            
-            if results:
-                set_cached_payload(cache_key, results)
-                return results
-                
+            except Exception:
+                continue
+
+        if results:
+            set_cached_payload(cache_key, results)
+            return results
     except Exception as e:
-        logger.warning(f"Bybit crypto fetch failed: {e}")
+        logger.warning(f"Bulk yfinance crypto fetch failed: {e}")
 
     return get_stale_payload(cache_key) or []
 
 
 def fetch_stock_quotes_safe(force_refresh=False):
     cache_key = "stock_list"
-
     if not force_refresh:
         cached = get_cached_payload(cache_key, Config.STOCK_CACHE_TTL)
-        if cached is not None:
-            return cached
+        if cached is not None: return cached
 
     symbols = [s for s, _ in STOCK_UNIVERSE]
     symbols_str = " ".join(symbols)
     results = []
     
     try:
-        # Bulk fetch all 50 assets simultaneously
-        data = yf.download(symbols_str, period="5d", interval="1d", group_by='ticker', threads=True, progress=False)
-        
+        data = yf.download(symbols_str, period="7d", interval="1d", group_by='ticker', threads=True, progress=False)
         for symbol, name in STOCK_UNIVERSE:
             try:
                 df = data[symbol] if len(symbols) > 1 else data
-                df = df.dropna(subset=['Close'])
+                series = df['Close'].ffill().dropna()
                 
-                if len(df) < 1:
-                    continue
-                
-                last_close = float(df["Close"].iloc[-1])
-                prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else last_close
+                if len(series) < 1: continue
+                last_close = float(series.iloc[-1])
+                prev_close = float(series.iloc[-2]) if len(series) > 1 else last_close
                 change = pct_change(last_close, prev_close)
                 
                 results.append({
@@ -1364,9 +1298,8 @@ def fetch_stock_quotes_safe(force_refresh=False):
         if results:
             set_cached_payload(cache_key, results)
             return results
-            
     except Exception as e:
-        logger.warning(f"Bulk yfinance fetch failed: {e}")
+        logger.warning(f"Bulk yfinance stock fetch failed: {e}")
 
     return get_stale_payload(cache_key) or []
 
@@ -1700,17 +1633,42 @@ def home():
 def crypto():
     page, search = get_int_arg("page", 1), (request.args.get("q") or "").strip().lower()
     assets = [dict(a) for a in fetch_crypto_quotes_safe()]
-    for a in assets: a["price_display"], a["change_display"] = fmt_price(a["price"], a["symbol"]), fmt_change(a["change"])
-    if search: assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
+    
+    for a in assets: 
+        a["price_display"] = fmt_price(a["price"], a["symbol"])
+        a["change_display"] = fmt_change(a["change"])
+        
+    if search: 
+        assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
     
     page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_CRYPTO)
-    rows = "".join(f'<tr><td><a href="/crypto/{h(a["symbol"])}">{h(a["symbol"])}</a></td><td id="price-{h(a["symbol"])}">{h(a["price_display"])}</td><td id="change-{h(a["symbol"])}" class="{a["dir"]}">{h(a["change_display"])}</td><td><span class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td></tr>' for a in page_items)
+    
+    rows = ""
+    for a in page_items:
+        # Fallback to pure Emoji if icon is broken
+        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=\'<span class=\\\'asset-icon\\\'>{h(a.get("icon","₿"))}</span>\'">'
+        rows += f"""
+        <tr>
+          <td class="asset-name">
+            <strong class="asset-row">{media}<a href="/crypto/{h(a['symbol'])}">{h(a['symbol'])}</a></strong>
+            <span>{h(a['name'])}</span>
+          </td>
+          <td id="price-{h(a['symbol'])}">{h(a['price_display'])}</td>
+          <td id="change-{h(a['symbol'])}" class="{a['dir']}">{h(a['change_display'])}</td>
+          <td><span class="signal signal-{a['signal'].lower()}">{a['signal']}</span></td>
+        </tr>
+        """
 
     content = f"""
     <section class="section">
       <h1>Crypto</h1>
       <div id="live-updated-crypto" class="live-stamp">Last updated: {h(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))} UTC</div>
-      <div class="table-shell"><table class="market-table"><tr><th>Asset</th><th>Price</th><th>24h</th><th>Signal</th></tr>{rows or "<tr><td colspan='4'>No data.</td></tr>"}</table></div>
+      <div class="table-shell">
+        <table class="market-table">
+          <tr><th>Asset</th><th>Price</th><th>24h</th><th>Signal</th></tr>
+          {rows or "<tr><td colspan='4'>No data available.</td></tr>"}
+        </table>
+      </div>
       {legal_disclaimer_html()}
     </section>
     """
@@ -1721,17 +1679,44 @@ def crypto():
 def stocks():
     page, search = get_int_arg("page", 1), (request.args.get("q") or "").strip().lower()
     assets = [dict(a) for a in fetch_stock_quotes_safe()]
-    for a in assets: a["price_display"], a["change_display"] = fmt_price(a["price"], a["symbol"]), fmt_change(a["change"])
-    if search: assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
+    
+    for a in assets: 
+        a["price_display"] = fmt_price(a["price"], a["symbol"])
+        a["change_display"] = fmt_change(a["change"])
+        
+    if search: 
+        assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
     
     page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_STOCKS)
-    rows = "".join(f'<tr><td><a href="/stocks/{h(a["symbol"])}">{h(a["symbol"])}</a></td><td id="price-{h(a["symbol"].replace("=", "_"))}">{h(a["price_display"])}</td><td id="change-{h(a["symbol"].replace("=", "_"))}" class="{a["dir"]}">{h(a["change_display"])}</td><td><span class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td></tr>' for a in page_items)
+    
+    rows = ""
+    for a in page_items:
+        safe_id = h(a["symbol"].replace("=", "_"))
+        # Fallback to Gold/Oil/Stock emoji if Clearbit logo is broken
+        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.outerHTML=\'<span class=\\\'asset-icon\\\'>{h(a.get("icon","📈"))}</span>\'">'
+        
+        rows += f"""
+        <tr>
+          <td class="asset-name">
+            <strong class="asset-row">{media}<a href="/stocks/{h(a['symbol'])}">{h(a['symbol'])}</a></strong>
+            <span>{h(a['name'])}</span>
+          </td>
+          <td id="price-{safe_id}">{h(a['price_display'])}</td>
+          <td id="change-{safe_id}" class="{a['dir']}">{h(a['change_display'])}</td>
+          <td><span class="signal signal-{a['signal'].lower()}">{a['signal']}</span></td>
+        </tr>
+        """
 
     content = f"""
     <section class="section">
       <h1>Stocks + Commodities</h1>
       <div id="live-updated-stocks" class="live-stamp">Last updated: {h(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))} UTC</div>
-      <div class="table-shell"><table class="market-table"><tr><th>Asset</th><th>Price</th><th>1D</th><th>Signal</th></tr>{rows or "<tr><td colspan='4'>No data.</td></tr>"}</table></div>
+      <div class="table-shell">
+        <table class="market-table">
+          <tr><th>Asset</th><th>Price</th><th>1D</th><th>Signal</th></tr>
+          {rows or "<tr><td colspan='4'>No data available.</td></tr>"}
+        </table>
+      </div>
       {legal_disclaimer_html()}
     </section>
     """
