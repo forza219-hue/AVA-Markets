@@ -11,6 +11,7 @@ import logging
 import random
 import threading
 import requests
+import pandas as pd
 import yfinance as yf
 
 from datetime import datetime, timedelta
@@ -61,8 +62,6 @@ class Config:
     CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "hello@avamarkets.com").strip()
 
     REQUESTS_TIMEOUT = int(os.environ.get("REQUESTS_TIMEOUT", "12"))
-    FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "").strip()
-    TWELVEDATA_API_KEY = os.environ.get("TWELVEDATA_API_KEY", "").strip()
 
     CRYPTO_CACHE_TTL = int(os.environ.get("CRYPTO_CACHE_TTL", "300"))
     STOCK_CACHE_TTL = int(os.environ.get("STOCK_CACHE_TTL", "600"))
@@ -90,37 +89,18 @@ class Config:
 
     RATE_LIMIT_STORAGE_URI = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory://")
 
-    TIERS = {
-        "free": {"price": 0},
-        "basic": {"price": 9},
-        "pro": {"price": 29},
-        "elite": {"price": 79},
-        "enterprise": {"price": None},
-    }
-
 
 def validate_runtime_config():
     missing = []
-
     for key in ["SECRET_KEY", "DOMAIN", "ADMIN_USERNAME", "ADMIN_PASSWORD"]:
         if not getattr(Config, key, ""):
             missing.append(key)
-
     if Config.STRIPE_SECRET_KEY and not Config.STRIPE_WEBHOOK_SECRET:
         missing.append("STRIPE_WEBHOOK_SECRET")
-
     if missing:
         raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
-
-    if Config.DATABASE.startswith(("postgres://", "postgresql://")):
-        raise RuntimeError(
-            "This version still uses sqlite3. "
-            "For PostgreSQL, migrate the DB layer first."
-        )
-
     if not Config.DOMAIN.startswith(("https://", "http://")):
         raise RuntimeError("DOMAIN must include protocol, e.g. https://yourdomain.com")
-
     logger.info("Config validated. SQLite WAL mode enabled.")
 
 
@@ -143,11 +123,9 @@ if Limiter:
     )
 else:
     logger.warning("Flask-Limiter not installed; rate limiting disabled.")
-
     class _NoopLimiter:
         def limit(self, *args, **kwargs):
-            def deco(fn):
-                return fn
+            def deco(fn): return fn
             return deco
     limiter = _NoopLimiter()
 
@@ -274,7 +252,7 @@ p{color:var(--muted);line-height:1.7;font-size:1.02rem}.section-sub{max-width:82
 }
 .asset-feature-icon{
   width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
-  font-size:1.25rem;flex-shrink:0;
+  font-size:1.25rem;
 }
 .asset-subtitle{color:var(--muted);font-size:.92rem;margin-top:4px;}
 .featured-shell{display:flex;flex-direction:column;gap:10px;}
@@ -344,30 +322,6 @@ STOCK_DOMAINS = {
     "QCOM": "qualcomm.com",
 }
 
-COINGECKO_IDS = {
-    "BTC": "bitcoin", "ETH": "ethereum", "BNB": "binancecoin", "SOL": "solana", "XRP": "ripple",
-    "DOGE": "dogecoin", "ADA": "cardano", "AVAX": "avalanche-2", "LINK": "chainlink", "DOT": "polkadot",
-    "MATIC": "matic-network", "LTC": "litecoin", "BCH": "bitcoin-cash", "ATOM": "cosmos", "UNI": "uniswap",
-    "NEAR": "near", "APT": "aptos", "ARB": "arbitrum", "OP": "optimism", "SUI": "sui",
-    "PEPE": "pepe", "SHIB": "shiba-inu", "TRX": "tron", "ETC": "ethereum-classic", "XLM": "stellar",
-    "HBAR": "hedera-hashgraph", "ICP": "internet-computer", "FIL": "filecoin",
-    "INJ": "injective-protocol", "RNDR": "render-token", "AAVE": "aave", "BONK": "bonk"
-}
-
-KRAKEN_PAIRS = {
-    "BTC": "XBTUSD", "ETH": "ETHUSD", "SOL": "SOLUSD", "XRP": "XRPUSD",
-    "DOGE": "DOGEUSD", "ADA": "ADAUSD", "AVAX": "AVAXUSD", "DOT": "DOTUSD",
-    "LINK": "LINKUSD", "LTC": "LTCUSD", "BCH": "BCHUSD", "ATOM": "ATOMUSD",
-    "UNI": "UNIUSD", "TRX": "TRXUSD", "ETC": "ETCUSD", "XLM": "XLMUSD",
-}
-
-KRAKEN_OHLC_MAP = {
-    "BTC": "XXBTZUSD", "ETH": "XETHZUSD", "SOL": "SOLUSD", "XRP": "XXRPZUSD",
-    "DOGE": "XDGUSD", "ADA": "ADAUSD", "AVAX": "AVAXUSD", "DOT": "DOTUSD",
-    "LINK": "LINKUSD", "LTC": "XLTCZUSD", "BCH": "BCHUSD", "ATOM": "ATOMUSD",
-    "UNI": "UNIUSD", "TRX": "TRXUSD", "ETC": "XETCZUSD", "XLM": "XXLMZUSD",
-}
-
 
 def h(value):
     return html.escape("" if value is None else str(value), quote=True)
@@ -391,6 +345,7 @@ def get_crypto_logo(symbol, provider_logo=None):
     candidates = [
         f"https://cryptoicons.org/api/icon/{symbol}/200",
         f"https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/{symbol}.png",
+        f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{symbol}.png",
     ]
     return candidates[0]
 
@@ -403,12 +358,17 @@ def get_crypto_logo_candidates(symbol, provider_logo=None):
     candidates.extend([
         f"https://cryptoicons.org/api/icon/{symbol}/200",
         f"https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/128/color/{symbol}.png",
+        f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{symbol}.png",
     ])
-    return candidates
+    seen = []
+    for c in candidates:
+        if c and c not in seen:
+            seen.append(c)
+    return seen
 
 
 def get_asset_icon(symbol):
-    mapping = {"GC=F": "🥇 Gold", "SI=F": "🥈 Silver", "PL=F": "🔘 Platinum", "CL=F": "🛢️ Oil", "SIG": "💎"}
+    mapping = {"GC=F": "🥇", "SI=F": "🥈", "PL=F": "🔘", "CL=F": "🛢️", "SIG": "💎"}
     return mapping.get(symbol.upper(), "📈")
 
 
@@ -642,12 +602,6 @@ class Database:
         c.close()
         return dict(row) if row else None
 
-    def get_user_by_stripe_customer(self, customer_id):
-        c = self.conn()
-        row = c.execute("SELECT * FROM users WHERE stripe_customer_id = ?", (customer_id,)).fetchone()
-        c.close()
-        return dict(row) if row else None
-
     def log_payment(self, user_id, provider, payment_id, amount, status):
         c = self.conn()
         c.execute("""
@@ -659,51 +613,34 @@ class Database:
 
     def get_all_users(self):
         c = self.conn()
-        rows = c.execute("""
-            SELECT id, email, tier, subscription_status, created_at
-            FROM users
-            ORDER BY id DESC
-        """).fetchall()
+        rows = c.execute("SELECT id, email, tier, subscription_status, created_at FROM users ORDER BY id DESC").fetchall()
         c.close()
         return [dict(r) for r in rows]
 
     def get_all_payments(self):
         c = self.conn()
         rows = c.execute("""
-            SELECT p.*, u.email
-            FROM payments p
-            LEFT JOIN users u ON u.id = p.user_id
-            ORDER BY p.id DESC
-            LIMIT 100
+            SELECT p.*, u.email FROM payments p
+            LEFT JOIN users u ON u.id = p.user_id ORDER BY p.id DESC LIMIT 100
         """).fetchall()
         c.close()
         return [dict(r) for r in rows]
 
     def add_watchlist(self, user_id, asset_type, symbol):
         c = self.conn()
-        c.execute("""
-            INSERT OR IGNORE INTO watchlists (user_id, asset_type, symbol)
-            VALUES (?, ?, ?)
-        """, (user_id, asset_type, symbol.upper()))
+        c.execute("INSERT OR IGNORE INTO watchlists (user_id, asset_type, symbol) VALUES (?, ?, ?)", (user_id, asset_type, symbol.upper()))
         c.commit()
         c.close()
 
     def remove_watchlist(self, user_id, asset_type, symbol):
         c = self.conn()
-        c.execute("""
-            DELETE FROM watchlists
-            WHERE user_id = ? AND asset_type = ? AND symbol = ?
-        """, (user_id, asset_type, symbol.upper()))
+        c.execute("DELETE FROM watchlists WHERE user_id = ? AND asset_type = ? AND symbol = ?", (user_id, asset_type, symbol.upper()))
         c.commit()
         c.close()
 
     def get_watchlist(self, user_id):
         c = self.conn()
-        rows = c.execute("""
-            SELECT * FROM watchlists
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-        """, (user_id,)).fetchall()
+        rows = c.execute("SELECT * FROM watchlists WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
         c.close()
         return [dict(r) for r in rows]
 
@@ -712,8 +649,7 @@ class Database:
         row = c.execute("""
             SELECT * FROM signal_snapshots
             WHERE asset_type = ? AND symbol = ? AND timeframe = ? AND signal_type = ?
-            ORDER BY id DESC
-            LIMIT 1
+            ORDER BY id DESC LIMIT 1
         """, (asset_type, symbol.upper(), timeframe, signal_type)).fetchone()
         c.close()
         return dict(row) if row else None
@@ -750,11 +686,7 @@ class Database:
 
     def get_recent_signal_changes(self, limit=50):
         c = self.conn()
-        rows = c.execute("""
-            SELECT * FROM signal_changes
-            ORDER BY id DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
+        rows = c.execute("SELECT * FROM signal_changes ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         c.close()
         return [dict(r) for r in rows]
 
@@ -770,23 +702,15 @@ class Database:
 
     def outcome_exists(self, snapshot_id, horizon):
         c = self.conn()
-        row = c.execute("""
-            SELECT 1
-            FROM signal_outcomes
-            WHERE snapshot_id = ? AND horizon = ?
-            LIMIT 1
-        """, (snapshot_id, horizon)).fetchone()
+        row = c.execute("SELECT 1 FROM signal_outcomes WHERE snapshot_id = ? AND horizon = ? LIMIT 1", (snapshot_id, horizon)).fetchone()
         c.close()
         return bool(row)
 
     def get_recent_snapshots_for_outcomes(self, days=10, limit=500):
         c = self.conn()
         rows = c.execute("""
-            SELECT *
-            FROM signal_snapshots
-            WHERE created_at >= datetime('now', ?)
-            ORDER BY id DESC
-            LIMIT ?
+            SELECT * FROM signal_snapshots WHERE created_at >= datetime('now', ?)
+            ORDER BY id DESC LIMIT ?
         """, (f"-{int(days)} days", limit)).fetchall()
         c.close()
         return [dict(r) for r in rows]
@@ -798,8 +722,7 @@ class Database:
                    s.confidence, s.created_at, o.horizon, o.return_pct, o.outcome
             FROM signal_snapshots s
             JOIN signal_outcomes o ON o.snapshot_id = s.id
-            WHERE s.created_at >= datetime('now', ?)
-            ORDER BY s.id DESC
+            WHERE s.created_at >= datetime('now', ?) ORDER BY s.id DESC
         """, (f"-{int(days)} days",)).fetchall()
         c.close()
         return [dict(r) for r in rows]
@@ -818,10 +741,8 @@ class Database:
         prev = self.latest_snapshot(asset_type, symbol, timeframe, signal_type)
         if prev:
             prev_factors = []
-            try:
-                prev_factors = json.loads(prev.get("factors_json") or "[]")
-            except Exception:
-                pass
+            try: prev_factors = json.loads(prev.get("factors_json") or "[]")
+            except Exception: pass
 
             prev_raw = json.dumps({
                 "signal": prev.get("signal"),
@@ -846,50 +767,26 @@ class Database:
 
     def cache_get(self, cache_key, ttl_seconds):
         c = self.conn()
-        row = c.execute("""
-            SELECT payload_json, updated_at
-            FROM market_cache
-            WHERE cache_key = ?
-        """, (cache_key,)).fetchone()
+        row = c.execute("SELECT payload_json, updated_at FROM market_cache WHERE cache_key = ?", (cache_key,)).fetchone()
         c.close()
-
-        if not row:
-            return None
-
-        age = int(time.time()) - int(row["updated_at"])
-        if age > ttl_seconds:
-            return None
-
-        try:
-            return json.loads(row["payload_json"])
-        except Exception:
-            return None
+        if not row: return None
+        if int(time.time()) - int(row["updated_at"]) > ttl_seconds: return None
+        try: return json.loads(row["payload_json"])
+        except: return None
 
     def cache_get_stale(self, cache_key):
         c = self.conn()
-        row = c.execute("""
-            SELECT payload_json
-            FROM market_cache
-            WHERE cache_key = ?
-        """, (cache_key,)).fetchone()
+        row = c.execute("SELECT payload_json FROM market_cache WHERE cache_key = ?", (cache_key,)).fetchone()
         c.close()
-
-        if not row:
-            return None
-
-        try:
-            return json.loads(row["payload_json"])
-        except Exception:
-            return None
+        if not row: return None
+        try: return json.loads(row["payload_json"])
+        except: return None
 
     def cache_set(self, cache_key, payload):
         c = self.conn()
         c.execute("""
-            INSERT INTO market_cache (cache_key, payload_json, updated_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(cache_key) DO UPDATE SET
-                payload_json = excluded.payload_json,
-                updated_at = excluded.updated_at
+            INSERT INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(cache_key) DO UPDATE SET payload_json = excluded.payload_json, updated_at = excluded.updated_at
         """, (cache_key, json.dumps(payload), int(time.time())))
         c.commit()
         c.close()
@@ -909,69 +806,34 @@ db = Database(Config.DATABASE)
 class StripeManager:
     @staticmethod
     def create_checkout(user_id, email, tier, success_url, cancel_url):
-        if not stripe or not Config.STRIPE_SECRET_KEY:
-            return None
-
+        if not stripe or not Config.STRIPE_SECRET_KEY: return None
         prices = {"basic": 900, "pro": 2900, "elite": 7900}
-        if tier not in prices:
-            return None
-
+        if tier not in prices: return None
         try:
             return stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                customer_email=email,
-                client_reference_id=str(user_id),
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {"name": f"AVA Markets - {tier.title()}"},
-                        "unit_amount": prices[tier],
-                        "recurring": {"interval": "month"}
-                    },
-                    "quantity": 1
-                }],
-                mode="subscription",
-                success_url=success_url,
-                cancel_url=cancel_url,
-                metadata={"user_id": str(user_id), "tier": tier}
+                payment_method_types=["card"], customer_email=email, client_reference_id=str(user_id),
+                line_items=[{"price_data": {"currency": "usd", "product_data": {"name": f"AVA Markets - {tier.title()}"}, "unit_amount": prices[tier], "recurring": {"interval": "month"}}, "quantity": 1}],
+                mode="subscription", success_url=success_url, cancel_url=cancel_url, metadata={"user_id": str(user_id), "tier": tier}
             )
         except Exception as e:
             logger.error(f"Stripe checkout error: {e}")
             return None
 
-    @staticmethod
-    def create_portal(customer_id, return_url):
-        if not stripe or not Config.STRIPE_SECRET_KEY:
-            return None
-        try:
-            return stripe.billing_portal.Session.create(customer=customer_id, return_url=return_url)
-        except Exception as e:
-            logger.error(f"Stripe portal error: {e}")
-            return None
-
-
 sm = StripeManager()
 
 
 def pct_change(a, b):
-    if b in [0, None]:
-        return 0.0
+    if b in [0, None]: return 0.0
     return ((a - b) / b) * 100.0
 
 
 def fmt_price(v, symbol=None):
-    if symbol == "ASML":
-        return f"€{v:,.2f}"
-    if v >= 1000:
-        return f"${v:,.2f}"
-    if v >= 1:
-        return f"${v:,.2f}"
-    if v >= 0.01:
-        return f"${v:.4f}"
-    if v >= 0.0001:
-        return f"${v:.6f}"
-    if v >= 0.000001:
-        return f"${v:.8f}"
+    if symbol == "ASML": return f"€{v:,.2f}"
+    if v >= 1000: return f"${v:,.2f}"
+    if v >= 1: return f"${v:,.2f}"
+    if v >= 0.01: return f"${v:.4f}"
+    if v >= 0.0001: return f"${v:.6f}"
+    if v >= 0.000001: return f"${v:.8f}"
     return f"${v:.10f}"
 
 
@@ -980,32 +842,22 @@ def fmt_change(v):
 
 
 def get_int_arg(name, default=1, min_value=1, max_value=100000):
-    raw = request.args.get(name, default)
-    try:
-        val = int(raw)
-    except Exception:
-        val = default
+    try: val = int(request.args.get(name, default))
+    except: val = default
     return max(min_value, min(max_value, val))
 
 
 def safe_redirect_target(default="/dashboard"):
     ref = request.referrer or ""
-    if not ref:
-        return default
+    if not ref: return default
     try:
         parsed_ref = urlparse(ref)
-        parsed_base = urlparse(Config.DOMAIN)
-        if parsed_ref.netloc and parsed_ref.netloc != parsed_base.netloc:
-            return default
+        if parsed_ref.netloc and parsed_ref.netloc != urlparse(Config.DOMAIN).netloc: return default
         path = parsed_ref.path or default
-        if not path.startswith("/"):
-            return default
-        if parsed_ref.query:
-            path = f"{path}?{parsed_ref.query}"
+        if not path.startswith("/"): return default
+        if parsed_ref.query: path = f"{path}?{parsed_ref.query}"
         return path
-    except Exception:
-        return default
-
+    except: return default
 
 def fallback_candles_html(seed=1):
     random.seed(seed)
@@ -1031,9 +883,7 @@ def fallback_candles_html(seed=1):
 
 
 def render_candles_from_ohlc(candles, height=140):
-    if not candles:
-        return fallback_candles_html()
-
+    if not candles: return fallback_candles_html()
     sample = candles[-20:]
     highs = [c["high"] for c in sample]
     lows = [c["low"] for c in sample]
@@ -1064,203 +914,72 @@ def render_candles_from_ohlc(candles, height=140):
     return "".join(html_parts)
 
 
-# ==================== UPDATED BATCH-ONLY FETCH FUNCTIONS ====================
-def fetch_crypto_quotes_safe(force_refresh=False):
-    cache_key = "crypto_list"
+def normalize_dt_to_ts(value):
+    try: return int(value.timestamp())
+    except: return None
 
-    if not force_refresh:
-        cached = get_cached_payload(cache_key, Config.CRYPTO_CACHE_TTL)
-        if cached is not None:
-            return cached
 
+def fetch_crypto_candles(symbol, interval="15m", limit=80):
+    # Bybit intervals: 15, 60 (for 1h), 240 (for 4h)
+    interval_map = {"15m": "15", "1h": "60", "4h": "240"}
+    bybit_sym = f"{symbol.upper()}USDT"
+    
     try:
-        ids = [COINGECKO_IDS[s] for s in CRYPTO_NAME_MAP.keys() if s in COINGECKO_IDS]
         r = requests.get(
-            "https://api.coingecko.com/api/v3/coins/markets",
+            "https://api.bybit.com/v5/market/kline",
             params={
-                "vs_currency": "usd",
-                "ids": ",".join(ids),
-                "order": "market_cap_desc",
-                "per_page": 100,
-                "page": 1,
-                "price_change_percentage": "24h"
+                "category": "spot",
+                "symbol": bybit_sym,
+                "interval": interval_map.get(interval, "15"),
+                "limit": limit
             },
             timeout=Config.REQUESTS_TIMEOUT
         )
         r.raise_for_status()
         data = r.json()
 
-        reverse_ids = {v: k for k, v in COINGECKO_IDS.items()}
-        results = []
+        if data.get("retCode") != 0:
+            return None
 
-        for item in data:
-            coin_id = item.get("id", "")
-            symbol = reverse_ids.get(coin_id)
-            if not symbol:
-                continue
-            try:
-                price = float(item.get("current_price") or 0)
-                change = float(item.get("price_change_percentage_24h") or 0)
-            except Exception:
-                continue
-            if price <= 0:
-                continue
-            results.append({
-                "symbol": symbol,
-                "name": CRYPTO_NAME_MAP.get(symbol, item.get("name") or symbol),
-                "price": price,
-                "change": change,
-                "dir": "up" if change >= 0 else "down",
-                "signal": compute_light_signal(change),
-                "logo": item.get("image") or get_crypto_logo(symbol),
-                "logo_candidates": get_crypto_logo_candidates(symbol, item.get("image")),
+        raw_candles = data.get("result", {}).get("list", [])
+        
+        # Bybit returns candles newest-to-oldest. We MUST reverse them!
+        raw_candles.reverse()
+
+        candles = []
+        for row in raw_candles:
+            candles.append({
+                "ts": int(row[0]) // 1000,
+                "open": float(row[1]),
+                "high": float(row[2]),
+                "low": float(row[3]),
+                "close": float(row[4])
             })
-
-        if results:
-            set_cached_payload(cache_key, results)
-            return results
+        return candles or None
     except Exception as e:
-        logger.error(f"CoinGecko batch failed: {e}")
-
-    stale = get_stale_payload(cache_key)
-    if stale is not None:
-        logger.warning("Returning stale crypto data")
-        return stale
-    return []
+        logger.warning(f"Bybit candles failed for {symbol}: {e}")
+        return None
 
 
-def fetch_stock_quotes_safe(force_refresh=False):
-    cache_key = "stock_list"
-
-    if not force_refresh:
-        cached = get_cached_payload(cache_key, Config.STOCK_CACHE_TTL)
-        if cached is not None:
-            return cached
-
+def fetch_stock_candles(symbol, period="6mo", interval="1d"):
     try:
-        symbols = [s for s, _ in STOCK_UNIVERSE]
-        tickers_str = " ".join(symbols)
+        ticker = yf.Ticker(symbol.upper())
+        hist = ticker.history(period=period, interval=interval, auto_adjust=False)
+        if hist is None or hist.empty: return None
 
-        df = yf.download(
-            tickers=tickers_str,
-            period="5d",
-            interval="1d",
-            group_by="ticker",
-            auto_adjust=False,
-            threads=True,
-            progress=False
-        )
-
-        results = []
-        for symbol in symbols:
-            try:
-                hist = df[symbol] if len(symbols) > 1 and symbol in df.columns.levels[0] else df
-                if hist is None or hist.empty:
-                    continue
-                hist = hist.dropna().tail(2)
-                if hist.empty:
-                    continue
-                last_close = float(hist["Close"].iloc[-1])
-                prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_close
-                change = pct_change(last_close, prev_close)
-
-                results.append({
-                    "symbol": symbol,
-                    "name": STOCK_NAME_MAP.get(symbol, symbol),
-                    "price": last_close,
-                    "change": change,
-                    "dir": "up" if change >= 0 else "down",
-                    "signal": compute_light_signal(change),
-                    "logo": get_stock_logo(symbol),
-                    "icon": get_asset_icon(symbol),
-                })
-            except Exception:
-                continue
-
-        if results:
-            set_cached_payload(cache_key, results)
-            return results
-    except Exception as e:
-        logger.error(f"yfinance batch failed: {e}")
-
-    stale = get_stale_payload(cache_key)
-    if stale is not None:
-        logger.warning("Returning stale stock data")
-        return stale
-    return []
-
-
-MEM_CACHE = {}
-
-
-def get_cached_payload(cache_key, ttl_seconds):
-    mem = MEM_CACHE.get(cache_key)
-    now = int(time.time())
-
-    if mem and mem["data"] is not None and (now - mem["updated_at"] <= ttl_seconds):
-        return mem["data"]
-
-    db_payload = db.cache_get(cache_key, ttl_seconds)
-    if db_payload is not None:
-        MEM_CACHE[cache_key] = {"data": db_payload, "updated_at": now}
-        return db_payload
-
-    return None
-
-
-def set_cached_payload(cache_key, payload):
-    now = int(time.time())
-    MEM_CACHE[cache_key] = {"data": payload, "updated_at": now}
-    db.cache_set(cache_key, payload)
-
-
-def get_stale_payload(cache_key):
-    mem = MEM_CACHE.get(cache_key)
-    if mem and mem["data"] is not None:
-        return mem["data"]
-    return db.cache_get_stale(cache_key)
-
-
-def merge_ordered_assets(provider_lists, ordered_universe):
-    merged = {}
-    for plist in provider_lists:
-        for item in plist or []:
-            sym = (item.get("symbol") or "").upper()
-            if not sym:
-                continue
-            if sym not in merged:
-                merged[sym] = dict(item)
-            else:
-                for k, v in item.items():
-                    if merged[sym].get(k) in [None, "", []] and v not in [None, "", []]:
-                        merged[sym][k] = v
-    return [merged[symbol] for symbol, _ in ordered_universe if symbol in merged]
-
-
-def merge_stock_payloads(payloads):
-    merged = {}
-    for payload in payloads:
-        for item in payload or []:
-            sym = (item.get("symbol") or "").upper()
-            if not sym: continue
-            if sym not in merged:
-                merged[sym] = dict(item)
-            else:
-                for k, v in item.items():
-                    if merged[sym].get(k) in [None, "", []] and v not in [None, "", []]:
-                        merged[sym][k] = v
-    ordered = []
-    for symbol, _name in STOCK_UNIVERSE:
-        if symbol in merged:
-            ordered.append(merged[symbol])
-    return ordered
-
-def compute_light_signal(change):
-    if change >= 2.0:
-        return "BUY"
-    if change <= -2.0:
-        return "SELL"
-    return "HOLD"
+        candles = []
+        for idx, row in hist.tail(120).iterrows():
+            ts = normalize_dt_to_ts(idx.to_pydatetime()) or int(time.time())
+            candles.append({
+                "ts": ts,
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"])
+            })
+        return candles or None
+    except Exception:
+        return None
 
 
 def fetch_crypto_multi_timeframe(symbol):
@@ -1280,51 +999,42 @@ def fetch_stock_multi_timeframe(symbol):
 
 
 def compute_rsi(closes, period=14):
-    if len(closes) < period + 1:
-        return 50.0
-    gains = []
-    losses = []
+    if len(closes) < period + 1: return 50.0
+    gains, losses = [], []
     for i in range(-period, 0):
         diff = closes[i] - closes[i - 1]
         gains.append(max(diff, 0))
         losses.append(abs(min(diff, 0)))
     avg_gain = sum(gains) / period
     avg_loss = sum(losses) / period
-    if avg_loss == 0:
-        return 100.0
+    if avg_loss == 0: return 100.0
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
 
 def compute_ema(values, period):
-    if not values:
-        return []
+    if not values: return []
     k = 2 / (period + 1)
     ema = [values[0]]
-    for v in values[1:]:
-        ema.append(v * k + ema[-1] * (1 - k))
+    for v in values[1:]: ema.append(v * k + ema[-1] * (1 - k))
     return ema
 
 
 def compute_atr(candles, period=14):
-    if len(candles) < 2:
-        return 0.0
+    if len(candles) < 2: return 0.0
     trs = []
     for i in range(1, len(candles)):
         h_ = candles[i]["high"]
         l_ = candles[i]["low"]
         pc = candles[i - 1]["close"]
-        tr = max(h_ - l_, abs(h_ - pc), abs(l_ - pc))
-        trs.append(tr)
-    if not trs:
-        return 0.0
+        trs.append(max(h_ - l_, abs(h_ - pc), abs(l_ - pc)))
+    if not trs: return 0.0
     period = min(period, len(trs))
     return sum(trs[-period:]) / period
 
 
 def compute_macd(closes, fast=12, slow=26, signal=9):
-    if len(closes) < slow:
-        return {"macd": 0.0, "signal": 0.0, "hist": 0.0}
+    if len(closes) < slow: return {"macd": 0.0, "signal": 0.0, "hist": 0.0}
     ema_fast = compute_ema(closes, fast)
     ema_slow = compute_ema(closes, slow)
     macd_line = [f - s for f, s in zip(ema_fast[-len(ema_slow):], ema_slow)]
@@ -1349,28 +1059,25 @@ def compute_bollinger(closes, period=20, std_mult=2):
 
 def confidence_label(conf):
     pct = conf * 100
-    if pct <= 60:
-        return "Weak"
-    if pct <= 75:
-        return "Moderate"
+    if pct <= 60: return "Weak"
+    if pct <= 75: return "Moderate"
     return "Strong"
 
 
 def extract_market_features(candles):
-    if not candles or len(candles) < 20:
-        return None
+    if not candles or len(candles) < 20: return None
     closes = [c["close"] for c in candles]
     highs = [c["high"] for c in candles]
     lows = [c["low"] for c in candles]
-    last = closes[-1]
-    prev = closes[-2] if len(closes) > 1 else last
 
+    last, prev = closes[-1], closes[-2]
     sma20 = sum(closes[-20:]) / 20
     sma50 = sum(closes[-50:]) / min(50, len(closes))
-    ema20 = compute_ema(closes, 20)[-1] if len(closes) >= 20 else last
-    ema50 = compute_ema(closes, 50)[-1] if len(closes) >= 50 else last
+    ema20 = compute_ema(closes, 20)[-1]
+    ema50 = compute_ema(closes, 50)[-1]
 
-    move_5 = pct_change(last, closes[-5]) if len(closes) >= 5 else 0
+    move_5 = pct_change(last, closes[-5])
+    move_10 = pct_change(last, closes[-10])
     rsi = compute_rsi(closes, period=min(14, len(closes) - 1))
     atr = compute_atr(candles, period=min(14, len(candles) - 1))
     atr_pct = (atr / last) * 100 if last else 0.0
@@ -1383,161 +1090,379 @@ def extract_market_features(candles):
     breakout_up = last >= recent_high_20 * 0.998
     breakout_down = last <= recent_low_20 * 1.002
 
+    range_now = highs[-1] - lows[-1]
+    range_avg = sum((highs[i] - lows[i]) for i in range(-5, 0)) / 5 if len(highs) >= 5 else range_now
+    volatility_ratio = (range_now / range_avg) if range_avg else 1.0
+
+    n = len(closes)
+    x = list(range(n))
+    x_mean = sum(x) / n
+    y_mean = sum(closes) / n
+    denom = sum((xi - x_mean) ** 2 for xi in x) or 1e-9
+    slope = sum((x[i] - x_mean) * (closes[i] - y_mean) for i in range(n)) / denom
+    slope_pct = (slope / last) * 100 if last else 0.0
+
     return {
-        "last": last, "prev": prev, "sma20": sma20, "sma50": sma50,
-        "ema20": ema20, "ema50": ema50, "move_5": move_5, "rsi": rsi,
-        "atr_pct": atr_pct, "macd_hist": macd["hist"], "bb_bandwidth": bb["bandwidth"],
+        "last": last, "prev": prev, "sma20": sma20, "sma50": sma50, "ema20": ema20, "ema50": ema50,
+        "move_5": move_5, "move_10": move_10, "rsi": rsi, "atr": atr, "atr_pct": atr_pct,
+        "macd": macd["macd"], "macd_signal": macd["signal"], "macd_hist": macd["hist"],
+        "bb_mid": bb["mid"], "bb_upper": bb["upper"], "bb_lower": bb["lower"], "bb_bandwidth": bb["bandwidth"],
+        "volatility_ratio": volatility_ratio, "slope": slope, "slope_pct": slope_pct,
         "breakout_up": breakout_up, "breakout_down": breakout_down,
     }
 
 
 def detect_market_regime(feats):
     if not feats: return "unknown"
-    if feats.get("breakout_up") or feats.get("breakout_down"): return "high_vol_breakout"
-    if feats["ema20"] > feats["ema50"]: return "trending_up"
-    if feats["ema20"] < feats["ema50"]: return "trending_down"
+    trend_up = feats["ema20"] > feats["ema50"] and feats["slope_pct"] > 0.02
+    trend_down = feats["ema20"] < feats["ema50"] and feats["slope_pct"] < -0.02
+    volatile = feats["atr_pct"] > 3.5 or feats["volatility_ratio"] > 1.6
+    compressed = feats["bb_bandwidth"] < 0.04 and feats["atr_pct"] < 1.2
+    breakout = feats["breakout_up"] or feats["breakout_down"]
+
+    if breakout and volatile: return "high_vol_breakout"
+    if trend_up and volatile: return "trending_up_volatile"
+    if trend_down and volatile: return "trending_down_volatile"
+    if trend_up: return "trending_up"
+    if trend_down: return "trending_down"
+    if compressed: return "low_vol_compression"
     return "range_bound"
 
 
 def ava_hypothesis_engine(candles, timeframe="1h", signal_type="short_term"):
     feats = extract_market_features(candles)
     if not feats:
-        return {"signal": "HOLD", "confidence": 0.50, "confidence_label": "Weak",
-                "trend_state": "Neutral", "regime": "unknown", "explanations": ["Insufficient data"], "score": 0}
+        return {"signal": "HOLD", "confidence": 0.50, "confidence_label": "Weak", "trend_state": "Neutral", "trend_strength": "Low", "forecast_trend": "Stable", "projected_change": "+0.00%", "regime": "unknown", "dominant_factors": ["insufficient_data"], "reasoning": "Not enough candle history for AVA Brain v2.", "explanations": ["Insufficient data for full signal model."], "score": 0}
 
+    regime = detect_market_regime(feats)
     score = 0
-    explanations = []
+    explanations, factors = [], []
 
     if feats["last"] > feats["ema20"]:
-        score += 2
-        explanations.append("Price above EMA20")
+        score += 2; explanations.append("Price is above EMA20, supporting short-term strength."); factors.append("price_above_ema20")
     else:
-        score -= 2
-        explanations.append("Price below EMA20")
+        score -= 2; explanations.append("Price is below EMA20, weakening short-term structure."); factors.append("price_below_ema20")
 
     if feats["ema20"] > feats["ema50"]:
-        score += 2
-        explanations.append("EMA20 > EMA50")
+        score += 2; explanations.append("EMA20 is above EMA50, confirming bullish trend alignment."); factors.append("ema20_above_ema50")
     else:
-        score -= 2
-        explanations.append("EMA20 < EMA50")
+        score -= 2; explanations.append("EMA20 is below EMA50, confirming bearish trend alignment."); factors.append("ema20_below_ema50")
 
-    if feats["rsi"] < 30:
-        score += 1
-        explanations.append("Oversold RSI")
-    elif feats["rsi"] > 70:
-        score -= 1
-        explanations.append("Overbought RSI")
+    if 55 <= feats["rsi"] <= 70:
+        score += 1; explanations.append(f"RSI at {feats['rsi']:.1f} is bullish without being heavily overbought."); factors.append("rsi_bullish_balanced")
+    elif feats["rsi"] >= 75:
+        if regime.startswith("trending_up"): explanations.append(f"RSI at {feats['rsi']:.1f} is elevated, but strong uptrends can sustain overbought readings."); factors.append("rsi_overbought_trend")
+        else: score -= 1; explanations.append(f"RSI at {feats['rsi']:.1f} is overbought in a non-trending regime."); factors.append("rsi_overbought_range")
+    elif feats["rsi"] <= 30:
+        if regime.startswith("trending_down"): explanations.append(f"RSI at {feats['rsi']:.1f} is oversold, but downtrends can remain weak."); factors.append("rsi_oversold_downtrend")
+        else: score += 1; explanations.append(f"RSI at {feats['rsi']:.1f} suggests a potential rebound condition."); factors.append("rsi_oversold_rebound")
+    elif feats["rsi"] < 45:
+        score -= 1; explanations.append(f"RSI at {feats['rsi']:.1f} leans bearish."); factors.append("rsi_bearish")
 
-    if feats["macd_hist"] > 0:
-        score += 1
+    if feats["macd_hist"] > 0: score += 2; explanations.append("MACD histogram is positive, showing improving momentum."); factors.append("macd_hist_positive")
+    else: score -= 2; explanations.append("MACD histogram is negative, showing fading momentum."); factors.append("macd_hist_negative")
 
-    if feats["breakout_up"]:
-        score += 2
-    elif feats["breakout_down"]:
-        score -= 2
+    if feats["move_5"] > 1.5: score += 1; explanations.append("5-period momentum is positive."); factors.append("positive_5p_momentum")
+    elif feats["move_5"] < -1.5: score -= 1; explanations.append("5-period momentum is negative."); factors.append("negative_5p_momentum")
 
-    signal = "BUY" if score >= 5 else "SELL" if score <= -5 else "HOLD"
+    if feats["breakout_up"]: score += 2; explanations.append("Price is testing or breaking the recent 20-period high."); factors.append("breakout_up")
+    elif feats["breakout_down"]: score -= 2; explanations.append("Price is testing or breaking the recent 20-period low."); factors.append("breakout_down")
+
+    if regime == "trending_up": score += 1; explanations.append("Market regime is trending up."); factors.append("regime_trending_up")
+    elif regime == "trending_down": score -= 1; explanations.append("Market regime is trending down."); factors.append("regime_trending_down")
+    elif regime == "range_bound": explanations.append("Market regime is range-bound, so breakout conviction is lower."); factors.append("regime_range_bound")
+    elif regime == "high_vol_breakout": explanations.append("Market regime is high-volatility breakout; signal quality may be stronger but risk is elevated."); factors.append("regime_high_vol_breakout")
+    elif regime == "low_vol_compression": explanations.append("Market regime is low-volatility compression; breakout risk is building."); factors.append("regime_low_vol_compression")
+
+    if feats["atr_pct"] > 5: score -= 1; explanations.append("ATR is elevated, increasing execution risk."); factors.append("atr_elevated")
+
+    if score >= 5: signal = "BUY"
+    elif score <= -5: signal = "SELL"
+    else: signal = "HOLD"
+
     confidence = min(0.90, max(0.50, 0.52 + abs(score) * 0.045))
+    c_label = confidence_label(confidence)
+
+    trend_strength = "High" if abs(score) >= 7 else "Medium" if abs(score) >= 4 else "Low"
+
+    if score > 1: trend_state = "Bullish"; forecast_trend = "Upward"
+    elif score < -1: trend_state = "Bearish"; forecast_trend = "Downward"
+    else: trend_state = "Neutral"; forecast_trend = "Stable"
+
+    projected_change_val = feats["move_10"] * 0.6 + feats["slope_pct"] * 12
 
     return {
-        "signal": signal,
-        "confidence": round(confidence, 2),
-        "confidence_label": confidence_label(confidence),
-        "trend_state": "Bullish" if score > 1 else "Bearish" if score < -1 else "Neutral",
-        "regime": detect_market_regime(feats),
-        "explanations": explanations[:5],
-        "score": score
+        "signal": signal, "confidence": round(confidence, 2), "confidence_label": c_label,
+        "trend_state": trend_state, "trend_strength": trend_strength, "forecast_trend": forecast_trend,
+        "projected_change": f"{projected_change_val:+.2f}%", "regime": regime,
+        "dominant_factors": factors[:6], "reasoning": " ".join(explanations[:3]),
+        "explanations": explanations[:6], "score": score
     }
 
 
 def aggregate_multi_timeframe_brain(asset_type, symbol, tf_map):
-    weighted_score = 0.0
+    signal_map = {"15m": ("short_term", 1.0), "1h": ("intraday", 1.2), "4h": ("swing", 1.5)} if asset_type == "crypto" else {"1d": ("short_term", 1.0), "1wk": ("trend", 1.4), "1mo": ("macro", 1.6)}
     per_tf = {}
-    for tf, candles in tf_map.items():
-        brain = ava_hypothesis_engine(candles or [], tf)
-        per_tf[tf] = brain
-        weighted_score += brain["score"]
+    weighted_score = 0.0
+    total_weight = 0.0
 
-    avg_score = weighted_score / len(tf_map) if tf_map else 0
+    for tf, candles in tf_map.items():
+        stype, weight = signal_map[tf]
+        brain = ava_hypothesis_engine(candles or [], timeframe=tf, signal_type=stype)
+        per_tf[tf] = {"timeframe": tf, "signal_type": stype, **brain}
+        weighted_score += brain["score"] * weight
+        total_weight += weight
+
+    avg_score = (weighted_score / total_weight) if total_weight else 0.0
     overall = "BUY" if avg_score >= 4 else "SELL" if avg_score <= -4 else "HOLD"
+    confidence = min(0.90, max(0.50, 0.54 + abs(avg_score) * 0.04))
+    
+    all_regimes = [v["regime"] for v in per_tf.values()]
+    all_factors = []
+    for v in per_tf.values(): all_factors.extend(v.get("dominant_factors", []))
+
+    explanations = [f"{tf} / {v['signal_type']}: {v['signal']} ({v['trend_state']}, {v['regime']})" for tf, v in per_tf.items()]
+
+    trend_state = "Bullish" if avg_score > 2 else "Bearish" if avg_score < -2 else "Neutral"
+    forecast_trend = "Upward" if avg_score > 2 else "Downward" if avg_score < -2 else "Stable"
 
     return {
-        "signal": overall,
-        "confidence": round(min(0.90, max(0.50, 0.54 + abs(avg_score) * 0.04)), 2),
-        "confidence_label": confidence_label(min(0.90, max(0.50, 0.54 + abs(avg_score) * 0.04))),
-        "trend_state": "Bullish" if avg_score > 2 else "Bearish" if avg_score < -2 else "Neutral",
-        "regime": "mixed",
-        "reasoning": "Multi-timeframe consensus",
-        "explanations": [f"{tf}: {per_tf[tf]['signal']}" for tf in per_tf],
-        "score": avg_score,
-        "timeframes": per_tf
+        "signal": overall, "confidence": round(confidence, 2), "confidence_label": confidence_label(confidence),
+        "trend_state": trend_state, "trend_strength": "High" if abs(avg_score) >= 6 else "Medium" if abs(avg_score) >= 3 else "Low",
+        "forecast_trend": forecast_trend, "projected_change": f"{avg_score:+.2f} score",
+        "regime": ", ".join(sorted(set(all_regimes))), "dominant_factors": list(dict.fromkeys(all_factors))[:8],
+        "reasoning": " | ".join(explanations[:3]), "explanations": explanations, "score": avg_score, "timeframes": per_tf
     }
+
+
+def compute_light_signal(change):
+    if change >= 2.0: return "BUY"
+    if change <= -2.0: return "SELL"
+    return "HOLD"
+
+MEM_CACHE = {}
+
+def get_cached_payload(cache_key, ttl_seconds):
+    mem = MEM_CACHE.get(cache_key)
+    now = int(time.time())
+    if mem and mem["data"] is not None and (now - mem["updated_at"] <= ttl_seconds):
+        return mem["data"]
+    db_payload = db.cache_get(cache_key, ttl_seconds)
+    if db_payload is not None:
+        MEM_CACHE[cache_key] = {"data": db_payload, "updated_at": now}
+        return db_payload
+    return None
+
+def set_cached_payload(cache_key, payload):
+    now = int(time.time())
+    MEM_CACHE[cache_key] = {"data": payload, "updated_at": now}
+    db.cache_set(cache_key, payload)
+
+def get_stale_payload(cache_key):
+    mem = MEM_CACHE.get(cache_key)
+    if mem and mem["data"] is not None:
+        return mem["data"]
+    return db.cache_get_stale(cache_key)
+
+
+def fetch_crypto_quotes_safe(force_refresh=False):
+    cache_key = "crypto_list"
+
+    if not force_refresh:
+        cached = get_cached_payload(cache_key, Config.CRYPTO_CACHE_TTL)
+        if cached is not None:
+            return cached
+
+    try:
+        # Fetches all spot crypto markets in ONE fast call via Bybit V5
+        r = requests.get(
+            "https://api.bybit.com/v5/market/tickers",
+            params={"category": "spot"},
+            timeout=Config.REQUESTS_TIMEOUT
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        if data.get("retCode") == 0:
+            market_map = {item["symbol"]: item for item in data["result"]["list"]}
+            
+            results = []
+            for symbol, name in CRYPTO_TOP_90:
+                bybit_sym = f"{symbol}USDT"
+                item = market_map.get(bybit_sym)
+                if not item:
+                    continue
+                
+                price = float(item.get("lastPrice", 0))
+                change = float(item.get("price24hPcnt", 0)) * 100.0
+
+                if price <= 0:
+                    continue
+                    
+                results.append({
+                    "symbol": symbol,
+                    "name": name,
+                    "price": price,
+                    "change": change,
+                    "dir": "up" if change >= 0 else "down",
+                    "signal": compute_light_signal(change),
+                    "logo": get_crypto_logo(symbol),
+                    "logo_candidates": get_crypto_logo_candidates(symbol),
+                })
+            
+            if results:
+                set_cached_payload(cache_key, results)
+                return results
+                
+    except Exception as e:
+        logger.warning(f"Bybit crypto fetch failed: {e}")
+
+    return get_stale_payload(cache_key) or []
+
+
+def fetch_stock_quotes_safe(force_refresh=False):
+    cache_key = "stock_list"
+
+    if not force_refresh:
+        cached = get_cached_payload(cache_key, Config.STOCK_CACHE_TTL)
+        if cached is not None:
+            return cached
+
+    symbols = [s for s, _ in STOCK_UNIVERSE]
+    symbols_str = " ".join(symbols)
+    results = []
+    
+    try:
+        # Bulk fetch all 50 assets simultaneously
+        data = yf.download(symbols_str, period="5d", interval="1d", group_by='ticker', threads=True, progress=False)
+        
+        for symbol, name in STOCK_UNIVERSE:
+            try:
+                df = data[symbol] if len(symbols) > 1 else data
+                df = df.dropna(subset=['Close'])
+                
+                if len(df) < 1:
+                    continue
+                
+                last_close = float(df["Close"].iloc[-1])
+                prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else last_close
+                change = pct_change(last_close, prev_close)
+                
+                results.append({
+                    "symbol": symbol,
+                    "name": name,
+                    "price": last_close,
+                    "change": change,
+                    "dir": "up" if change >= 0 else "down",
+                    "signal": compute_light_signal(change),
+                    "logo": get_stock_logo(symbol),
+                    "icon": get_asset_icon(symbol),
+                })
+            except Exception:
+                continue
+
+        if results:
+            set_cached_payload(cache_key, results)
+            return results
+            
+    except Exception as e:
+        logger.warning(f"Bulk yfinance fetch failed: {e}")
+
+    return get_stale_payload(cache_key) or []
+
+
+def paginate(items, page, per_page):
+    total = len(items)
+    pages = max(1, math.ceil(total / per_page)) if total > 0 else 1
+    page = max(1, min(page, pages))
+    start = (page - 1) * per_page
+    return items[start:start + per_page], total, pages, page
+
+def detail_cache_key(asset_type, symbol):
+    return f"detail::{asset_type}::{symbol.upper()}"
 
 
 def build_crypto_detail(symbol):
     symbol = symbol.upper()
     light_map = {a["symbol"]: a for a in fetch_crypto_quotes_safe()}
-    if symbol not in light_map:
-        return None
-    asset = dict(light_map[symbol])
-    if asset.get("price", 0) <= 0:
-        return None
+    if symbol not in light_map: return None
 
+    asset = dict(light_map[symbol])
     tf_map = fetch_crypto_multi_timeframe(symbol)
     primary_candles = tf_map.get("15m") or tf_map.get("1h") or tf_map.get("4h") or []
     agg = aggregate_multi_timeframe_brain("crypto", symbol, tf_map)
 
+    feats = extract_market_features(primary_candles)
     asset.update({
         "price_display": fmt_price(asset["price"], asset["symbol"]),
         "change_display": fmt_change(asset["change"]),
         "detail_candles": render_candles_from_ohlc(primary_candles) if primary_candles else fallback_candles_html(99),
-        "signal": agg["signal"],
-        "overall_brain": agg,
         "signal_meta": {
-            "signal": agg["signal"],
-            "confidence": agg["confidence"],
-            "confidence_label": agg["confidence_label"],
-        }
+            "signal": agg["signal"], "confidence": agg["confidence"], "confidence_label": agg["confidence_label"],
+            "confidence_note": "Confidence reflects internal indicator agreement, not guaranteed outcome probability.",
+            "rsi": round(feats["rsi"], 2) if feats else 50.0, "momentum": round(feats["move_5"], 2) if feats else 0.0,
+            "summary": agg["reasoning"], "why": agg["explanations"],
+        },
+        "forecast": {
+            "trend": agg["forecast_trend"], "projected_change": agg["projected_change"],
+            "confidence_band": f"{int(agg['confidence'] * 100)}%",
+            "summary": f"Multi-timeframe crypto forecast: {agg['forecast_trend'].lower()} with {agg['trend_strength'].lower()} conviction."
+        },
+        "trend_data": {
+            "state": agg["trend_state"], "strength": agg["trend_strength"], "read": agg["regime"],
+            "summary": f"Dominant factors: {', '.join(agg['dominant_factors'][:4])}."
+        },
+        "signal": agg["signal"], "multi_timeframes": agg["timeframes"], "overall_brain": agg
     })
+
+    for tf, item in agg["timeframes"].items():
+        db.upsert_signal_snapshot_if_changed("crypto", symbol, tf, item["signal_type"], item["signal"], item["confidence"], item["confidence_label"], item["regime"], item["trend_state"], asset["price"], item["explanations"], item["dominant_factors"])
     return asset
 
 
 def build_stock_detail(symbol):
     symbol = symbol.upper()
     light_map = {a["symbol"]: a for a in fetch_stock_quotes_safe()}
-    if symbol not in light_map:
-        return None
-    asset = dict(light_map[symbol])
-    if asset.get("price", 0) <= 0:
-        return None
+    if symbol not in light_map: return None
 
+    asset = dict(light_map[symbol])
     tf_map = fetch_stock_multi_timeframe(symbol)
     primary_candles = tf_map.get("1d") or tf_map.get("1wk") or tf_map.get("1mo") or []
     agg = aggregate_multi_timeframe_brain("stock", symbol, tf_map)
 
+    feats = extract_market_features(primary_candles)
     asset.update({
         "price_display": fmt_price(asset["price"], asset["symbol"]),
         "change_display": fmt_change(asset["change"]),
         "detail_candles": render_candles_from_ohlc(primary_candles) if primary_candles else fallback_candles_html(101),
-        "signal": agg["signal"],
-        "overall_brain": agg,
         "signal_meta": {
-            "signal": agg["signal"],
-            "confidence": agg["confidence"],
-            "confidence_label": agg["confidence_label"],
-        }
+            "signal": agg["signal"], "confidence": agg["confidence"], "confidence_label": agg["confidence_label"],
+            "confidence_note": "Confidence reflects internal indicator agreement, not guaranteed outcome probability.",
+            "rsi": round(feats["rsi"], 2) if feats else 50.0, "momentum": round(feats["move_5"], 2) if feats else 0.0,
+            "summary": agg["reasoning"], "why": agg["explanations"],
+        },
+        "forecast": {
+            "trend": agg["forecast_trend"], "projected_change": agg["projected_change"],
+            "confidence_band": f"{int(agg['confidence'] * 100)}%",
+            "summary": f"Multi-timeframe forecast: {agg['forecast_trend'].lower()} with {agg['trend_strength'].lower()} conviction."
+        },
+        "trend_data": {
+            "state": agg["trend_state"], "strength": agg["trend_strength"], "read": agg["regime"],
+            "summary": f"Dominant factors: {', '.join(agg['dominant_factors'][:4])}."
+        },
+        "signal": agg["signal"], "multi_timeframes": agg["timeframes"], "overall_brain": agg
     })
+
+    for tf, item in agg["timeframes"].items():
+        db.upsert_signal_snapshot_if_changed("stock", symbol, tf, item["signal_type"], item["signal"], item["confidence"], item["confidence_label"], item["regime"], item["trend_state"], asset["price"], item["explanations"], item["dominant_factors"])
     return asset
 
 
 def get_crypto_detail(symbol, force_refresh=False):
-    symbol = symbol.upper()
-    cache_key = f"detail::crypto::{symbol}"
+    cache_key = detail_cache_key("crypto", symbol)
     if not force_refresh:
         cached = get_cached_payload(cache_key, Config.DETAIL_CACHE_TTL)
-        if cached is not None:
-            return cached
+        if cached is not None: return cached
     asset = build_crypto_detail(symbol)
     if asset:
         set_cached_payload(cache_key, asset)
@@ -1546,12 +1471,10 @@ def get_crypto_detail(symbol, force_refresh=False):
 
 
 def get_stock_detail(symbol, force_refresh=False):
-    symbol = symbol.upper()
-    cache_key = f"detail::stock::{symbol}"
+    cache_key = detail_cache_key("stock", symbol)
     if not force_refresh:
         cached = get_cached_payload(cache_key, Config.DETAIL_CACHE_TTL)
-        if cached is not None:
-            return cached
+        if cached is not None: return cached
     asset = build_stock_detail(symbol)
     if asset:
         set_cached_payload(cache_key, asset)
@@ -1559,190 +1482,387 @@ def get_stock_detail(symbol, force_refresh=False):
     return get_stale_payload(cache_key)
 
 
+def refresh_single_detail_cache(asset_type, symbol):
+    if asset_type == "crypto": return get_crypto_detail(symbol, force_refresh=True)
+    return get_stock_detail(symbol, force_refresh=True)
+
+
 def warm_detail_caches():
     for symbol in Config.DETAIL_WARM_CRYPTO:
-        try:
-            get_crypto_detail(symbol, force_refresh=True)
-        except Exception as e:
-            logger.warning(f"Warm crypto detail failed for {symbol}: {e}")
+        try: refresh_single_detail_cache("crypto", symbol)
+        except: pass
     for symbol in Config.DETAIL_WARM_STOCKS:
-        try:
-            get_stock_detail(symbol, force_refresh=True)
-        except Exception as e:
-            logger.warning(f"Warm stock detail failed for {symbol}: {e}")
+        try: refresh_single_detail_cache("stock", symbol)
+        except: pass
+
+
+def evaluate_signal_outcome(signal, entry_price, current_price):
+    if not entry_price or not current_price: return None, None
+    ret = pct_change(current_price, entry_price)
+    if signal == "BUY": outcome = "correct" if ret > 0 else "incorrect"
+    elif signal == "SELL": outcome = "correct" if ret < 0 else "incorrect"
+    else: outcome = "correct" if abs(ret) < 1.0 else "incorrect"
+    return ret, outcome
+
+
+def parse_sqlite_dt(v):
+    try: return datetime.fromisoformat(str(v).replace(" ", "T"))
+    except: return None
+
+
+def select_price_near_target(points, target_dt):
+    if not points: return None
+    target_ts = int(target_dt.timestamp())
+    ordered = sorted([p for p in points if p.get("ts") and p.get("close") is not None], key=lambda x: x["ts"])
+    if not ordered: return None
+    after = [p for p in ordered if p["ts"] >= target_ts]
+    if after: return float(after[0]["close"])
+    return float(ordered[-1]["close"])
+
+
+def get_price_for_horizon(asset_type, symbol, created_dt, horizon):
+    target_dt = created_dt + {"1h": timedelta(hours=1), "24h": timedelta(hours=24), "7d": timedelta(days=7)}[horizon]
+    points = fetch_crypto_candles(symbol, interval="15m", limit=72) if asset_type == "crypto" else fetch_stock_candles(symbol, period="1mo", interval="1d")
+    return select_price_near_target(points, target_dt)
+
+
+def refresh_signal_outcomes():
+    rows = db.get_recent_snapshots_for_outcomes(days=10, limit=400)
+    now = datetime.utcnow()
+    for row in rows:
+        created = parse_sqlite_dt(row["created_at"])
+        if not created: continue
+        age_hours = (now - created).total_seconds() / 3600.0
+        for horizon, threshold in [("1h", 1), ("24h", 24), ("7d", 24 * 7)]:
+            if age_hours < threshold or db.outcome_exists(row["id"], horizon): continue
+            price_at_horizon = get_price_for_horizon(row["asset_type"], row["symbol"], created, horizon)
+            if not price_at_horizon: continue
+            ret, outcome = evaluate_signal_outcome(row["signal"], row["price_at_signal"], price_at_horizon)
+            if ret is not None: db.insert_signal_outcome(row["id"], horizon, price_at_horizon, ret, outcome)
+
+
+def summarize_performance(rows):
+    if not rows: return {"total": 0, "buy_accuracy": 0, "sell_accuracy": 0, "hold_accuracy": 0, "avg_return": 0, "best_assets": []}
+    total = len(rows)
+    buy, sell, hold = [r for r in rows if r["signal"] == "BUY"], [r for r in rows if r["signal"] == "SELL"], [r for r in rows if r["signal"] == "HOLD"]
+    def acc(items): return round(100 * sum(1 for x in items if x["outcome"] == "correct") / len(items), 1) if items else 0
+    avg_return = round(sum(float(r["return_pct"] or 0) for r in rows) / total, 2) if total else 0
+    per_symbol = {}
+    for r in rows: per_symbol.setdefault(r["symbol"], []).append(float(r["return_pct"] or 0))
+    ranked = sorted(((sym, round(sum(vals) / len(vals), 2)) for sym, vals in per_symbol.items()), key=lambda x: x[1], reverse=True)
+    return {"total": total, "buy_accuracy": acc(buy), "sell_accuracy": acc(sell), "hold_accuracy": acc(hold), "avg_return": avg_return, "best_assets": ranked[:5]}
 
 
 def legal_disclaimer_html():
     return """
     <div class="card" style="margin-top:24px;">
       <h3>Disclaimer</h3>
-      <p>AVA Markets provides technical analysis for educational purposes only. It is not financial advice.</p>
+      <p>AVA Markets provides technical market intelligence and indicator-based analysis for educational purposes only. It is not financial advice.</p>
     </div>
     """
 
 
-def live_update_script(page_type=None):
-    if page_type in ["crypto_list", "stock_list"]:
-        return '<script>setInterval(() => location.reload(), 45000);</script>'
+def homepage_json_ld():
+    return [
+        {"@context": "https://schema.org", "@type": "Organization", "name": "AVA Markets", "url": Config.DOMAIN},
+        {"@context": "https://schema.org", "@type": "WebSite", "name": "AVA Markets", "url": Config.DOMAIN, "potentialAction": {"@type": "SearchAction", "target": f"{Config.DOMAIN}/crypto?q={{search_term_string}}", "query-input": "required name=search_term_string"}}
+    ]
+
+
+def live_update_script(page_type=None, symbol=None, asset_type=None):
+    if page_type == "crypto_list":
+        return "<script>async function refreshCryptoList(){ try{ const res = await fetch('/api/live/crypto-list'); const data = await res.json(); document.getElementById('live-updated-crypto').textContent = 'Last updated: ' + data.updated_at + ' UTC'; data.items.forEach(item => { const p = document.getElementById('price-'+item.symbol); if(p) p.textContent = item.price_display; const c = document.getElementById('change-'+item.symbol); if(c) {c.textContent = item.change_display; c.className = item.dir;} const s = document.getElementById('signal-'+item.symbol); if(s) {s.textContent = item.signal; s.className = 'signal signal-' + item.signal.toLowerCase();} }); }catch(e){} } setInterval(refreshCryptoList, 30000);</script>"
+    if page_type == "stock_list":
+        return "<script>async function refreshStockList(){ try{ const res = await fetch('/api/live/stocks-list'); const data = await res.json(); document.getElementById('live-updated-stocks').textContent = 'Last updated: ' + data.updated_at + ' UTC'; data.items.forEach(item => { const safe = item.symbol.replace(/[^A-Za-z0-9]/g, '_'); const p = document.getElementById('price-'+safe); if(p) p.textContent = item.price_display; const c = document.getElementById('change-'+safe); if(c) {c.textContent = item.change_display; c.className = item.dir;} const s = document.getElementById('signal-'+safe); if(s) {s.textContent = item.signal; s.className = 'signal signal-' + item.signal.toLowerCase();} }); }catch(e){} } setInterval(refreshStockList, 45000);</script>"
+    if page_type == "detail":
+        interval = 30000 if asset_type == "crypto" else 45000
+        return f"<script>async function refreshDetail(){{ try{{ const res = await fetch('/api/live/{asset_type}/{symbol.upper()}'); const data = await res.json(); document.getElementById('detail-price').textContent = data.price_display; const c = document.getElementById('detail-change'); c.textContent = data.change_display; c.className = data.dir; const s = document.getElementById('detail-signal'); s.textContent = data.signal; s.className = 'signal signal-' + data.signal.toLowerCase(); document.getElementById('detail-updated').textContent = 'Last updated: ' + data.updated_at + ' UTC'; }}catch(e){{}} }} setInterval(refreshDetail, {interval});</script>"
     return ""
 
 
-def nav_layout(title, content, extra_head="", meta_description=None):
-    if not meta_description:
-        meta_description = "Live crypto and stock market signals, forecasts and trends - AVA Markets"
+def nav_layout(title, content, extra_head="", meta_description=None, canonical_url=None, og_type="website", robots_content="index, follow", json_ld_override=None):
+    if not meta_description: meta_description = "AVA Markets provides crypto, stock, and commodity market intelligence with live updates and signals."
+    if not canonical_url: canonical_url = f"{Config.DOMAIN}{request.path}"
+    json_ld_payload = json_ld_override if json_ld_override is not None else {"@context": "https://schema.org", "@type": "WebPage", "name": title, "url": canonical_url, "description": meta_description}
+
     return render_template_string("""
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ title }}</title>
-  <meta name="description" content="{{ meta_description }}">
-  <style>{{ css }}</style>
-  {{ extra_head|safe }}
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title><meta name="description" content="{{ meta_description }}"><meta name="robots" content="{{ robots_content }}"><link rel="canonical" href="{{ canonical_url }}">
+  <meta property="og:title" content="{{ title }}"><meta property="og:description" content="{{ meta_description }}"><meta property="og:type" content="{{ og_type }}"><meta property="og:url" content="{{ canonical_url }}">
+  <script type="application/ld+json">{{ json_ld_payload|tojson|safe }}</script>
+  <style>{{ css }}</style>{{ extra_head|safe }}
 </head>
 <body>
   <div class="container">
     <nav class="nav">
       <div class="logo"><a href="/">AVA Markets</a></div>
       <div class="nav-links">
-        <a href="/">Home</a>
-        <a href="/crypto">Crypto</a>
-        <a href="/stocks">Stocks</a>
-        <a href="/forecast">Forecast</a>
-        <a href="/trends">Trends</a>
-        <a href="/performance">Performance</a>
-        <a href="/signal-changes">Signal Changes</a>
-        <a href="/pricing">Pricing</a>
-        {% if user %}
-          <a href="/dashboard">Dashboard</a>
-          <a href="/logout">Logout</a>
-        {% else %}
-          <a href="/login">Login</a>
-          <a href="/register">Register</a>
-        {% endif %}
+        <a href="/">Home</a><a href="/crypto">Crypto</a><a href="/stocks">Stocks</a><a href="/pricing">Pricing</a>
+        {% if user %}<a href="/dashboard">Dashboard</a><a href="/logout">Logout</a>{% else %}<a href="/login">Login</a><a href="/register">Register</a>{% endif %}
       </div>
     </nav>
     {{ content|safe }}
-    <div class="footer">AVA Markets © 2026 — Educational Market Intelligence</div>
+    <div class="footer">AVA Markets © 2026 — crypto, stocks, signals, live updates, trends, and forecasts.</div>
   </div>
 </body>
 </html>
-    """, title=title, content=content, css=CSS, user=g.get("user"), extra_head=extra_head, meta_description=meta_description)
+    """, title=title, content=content, css=CSS, user=g.get("user"), extra_head=extra_head, meta_description=meta_description, canonical_url=canonical_url, og_type=og_type, robots_content=robots_content, json_ld_payload=json_ld_payload)
 
 
-# ====================== NEW ROUTES ======================
-@app.route("/performance")
-def performance():
-    rows = db.get_performance_summary(days=30)
-    summary = summarize_performance(rows)
-    content = f"""
-    <section class="section">
-      <h1>Signal Performance</h1>
-      <p class="section-sub">Last 30 days of realized signal outcomes.</p>
-      <div class="dashboard-grid">
-        <div class="dashboard-card"><h3>Total Signals</h3><h2>{summary.get('total', 0)}</h2></div>
-        <div class="dashboard-card"><h3>Buy Accuracy</h3><h2>{summary.get('buy_accuracy', 0)}%</h2></div>
-        <div class="dashboard-card"><h3>Avg Return</h3><h2>{summary.get('avg_return', 0)}%</h2></div>
+def get_web_user(): return db.get_user_by_session(request.cookies.get("session_token"))
+def get_web_admin(): return db.get_admin_session(request.cookies.get("admin_token"))
+
+@app.before_request
+def load_request_state():
+    g.user = get_web_user()
+    g.admin = get_web_admin()
+
+def require_login(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not g.user: return redirect("/login")
+        return fn(*args, **kwargs)
+    return wrapper
+
+def require_admin(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not g.admin: return redirect("/admin/login")
+        return fn(*args, **kwargs)
+    return wrapper
+
+def is_paid_active(): return bool(g.user and g.user.get("subscription_status") in ["active", "trialing"])
+def current_tier(): return g.user["tier"] if g.user else "free"
+def can_access_signals(): return is_paid_active() and current_tier() in ["basic", "pro", "elite", "enterprise"]
+def can_access_forecast(): return is_paid_active() and current_tier() in ["pro", "elite", "enterprise"]
+def can_access_trends(): return is_paid_active() and current_tier() in ["pro", "elite", "enterprise"]
+
+@app.route("/api/live/crypto-list")
+@limiter.limit("120 per minute")
+def api_live_crypto_list():
+    items = [{"symbol": a["symbol"], "price_display": fmt_price(a["price"], a["symbol"]), "change_display": fmt_change(a["change"]), "dir": a["dir"], "signal": a["signal"]} for a in fetch_crypto_quotes_safe()]
+    return jsonify({"updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "items": items})
+
+@app.route("/api/live/stocks-list")
+@limiter.limit("120 per minute")
+def api_live_stocks_list():
+    items = [{"symbol": a["symbol"], "price_display": fmt_price(a["price"], a["symbol"]), "change_display": fmt_change(a["change"]), "dir": a["dir"], "signal": a["signal"]} for a in fetch_stock_quotes_safe()]
+    return jsonify({"updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "items": items})
+
+@app.route("/api/live/crypto/<symbol>")
+@limiter.limit("60 per minute")
+def api_live_crypto_detail(symbol):
+    asset = get_crypto_detail(symbol)
+    if not asset: return jsonify({"error": "not_found"}), 404
+    return jsonify({"symbol": asset["symbol"], "price_display": asset["price_display"], "change_display": asset["change_display"], "dir": asset["dir"], "signal": asset["signal"], "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")})
+
+@app.route("/api/live/stock/<symbol>")
+@limiter.limit("60 per minute")
+def api_live_stock_detail(symbol):
+    asset = get_stock_detail(symbol)
+    if not asset: return jsonify({"error": "not_found"}), 404
+    return jsonify({"symbol": asset["symbol"], "price_display": asset["price_display"], "change_display": asset["change_display"], "dir": asset["dir"], "signal": asset["signal"], "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")})
+
+
+@app.route("/")
+def home():
+    crypto_list = fetch_crypto_quotes_safe()
+    stock_list = fetch_stock_quotes_safe()
+
+    fc = dict(crypto_list[0]) if crypto_list else {"symbol": "N/A", "name": "N/A", "price": 0.0, "change": 0.0, "dir": "down", "signal": "HOLD", "logo": None}
+    fs = dict(stock_list[0]) if stock_list else {"symbol": "N/A", "name": "N/A", "price": 0.0, "change": 0.0, "dir": "down", "signal": "HOLD", "icon": "📈"}
+
+    fc["price_display"], fc["change_display"] = fmt_price(fc["price"], fc["symbol"]), fmt_change(fc["change"])
+    fs["price_display"], fs["change_display"] = fmt_price(fs["price"], fs["symbol"]), fmt_change(fs["change"])
+
+    content = render_template_string("""
+    <section class="hero">
+      <div class="hero-card">
+        <div class="badge">AVA Markets Core</div>
+        <h1>Live-feeling market intelligence for crypto, stocks, and commodities.</h1>
+        <div class="btns"><a class="btn btn-primary" href="/crypto">Explore Crypto</a><a class="btn btn-secondary" href="/stocks">Explore Stocks</a></div>
       </div>
-      {legal_disclaimer_html()}
-    </section>
-    """
-    return nav_layout("Performance - AVA Markets", content)
-
-
-@app.route("/signal-changes")
-def signal_changes():
-    changes = db.get_recent_signal_changes(limit=100)
-    rows = "".join(f"<tr><td>{h(c['symbol'])}</td><td>{h(c.get('old_signal','—'))}</td><td>{h(c['new_signal'])}</td><td>{h(c['changed_at'])}</td></tr>" for c in changes)
-    content = f"""
-    <section class="section">
-      <h1>Recent Signal Changes</h1>
-      <div class="table-shell">
-        <table class="market-table">
-          <tr><th>Symbol</th><th>Old Signal</th><th>New Signal</th><th>When</th></tr>
-          {rows or "<tr><td colspan='4'>No changes recorded yet.</td></tr>"}
-        </table>
+      <div class="card featured-shell">
+        <div class="badge">Featured {{ fc.symbol }}</div>
+        <div style="font-size:2.4rem;font-weight:800;">{{ fc.price_display }} <span class="{{ fc.dir }}" style="font-size:1rem;">{{ fc.change_display }}</span></div>
+        <div class="candle-box">{{ crypto_candles|safe }}</div>
       </div>
-      {legal_disclaimer_html()}
     </section>
-    """
-    return nav_layout("Signal Changes - AVA Markets", content)
+    """, fc=fc, crypto_candles=fallback_candles_html(1))
+
+    return nav_layout("AVA Markets - Crypto & Stock Signals", content, json_ld_override=homepage_json_ld())
 
 
-@app.route("/forecast")
-def forecast():
-    crypto = fetch_crypto_quotes_safe()[:12]
-    stocks = fetch_stock_quotes_safe()[:12]
+@app.route("/crypto")
+def crypto():
+    page, search = get_int_arg("page", 1), (request.args.get("q") or "").strip().lower()
+    assets = [dict(a) for a in fetch_crypto_quotes_safe()]
+    for a in assets: a["price_display"], a["change_display"] = fmt_price(a["price"], a["symbol"]), fmt_change(a["change"])
+    if search: assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
+    
+    page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_CRYPTO)
+    rows = "".join(f'<tr><td><a href="/crypto/{h(a["symbol"])}">{h(a["symbol"])}</a></td><td id="price-{h(a["symbol"])}">{h(a["price_display"])}</td><td id="change-{h(a["symbol"])}" class="{a["dir"]}">{h(a["change_display"])}</td><td><span class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td></tr>' for a in page_items)
+
     content = f"""
     <section class="section">
-      <h1>Forecast Intelligence</h1>
-      <h2>Crypto</h2><div class="market-grid">{"".join(f'<div class="card"><strong>{a["symbol"]}</strong> — {a["signal"]}</div>' for a in crypto)}</div>
-      <h2>Stocks & Commodities</h2><div class="market-grid">{"".join(f'<div class="card"><strong>{a["symbol"]}</strong> — {a["signal"]}</div>' for a in stocks)}</div>
+      <h1>Crypto</h1>
+      <div id="live-updated-crypto" class="live-stamp">Last updated: {h(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))} UTC</div>
+      <div class="table-shell"><table class="market-table"><tr><th>Asset</th><th>Price</th><th>24h</th><th>Signal</th></tr>{rows or "<tr><td colspan='4'>No data.</td></tr>"}</table></div>
       {legal_disclaimer_html()}
     </section>
     """
-    return nav_layout("Forecast - AVA Markets", content)
+    return nav_layout("Crypto Markets - AVA", content, extra_head=live_update_script("crypto_list"))
 
 
-@app.route("/trends")
-def trends():
-    assets = fetch_crypto_quotes_safe()[:15] + fetch_stock_quotes_safe()[:10]
-    rows = "".join(f'<tr><td>{h(a["symbol"])}</td><td>{fmt_price(a.get("price",0))}</td><td class="{a["dir"]}">{fmt_change(a.get("change",0))}</td></tr>' for a in assets)
+@app.route("/stocks")
+def stocks():
+    page, search = get_int_arg("page", 1), (request.args.get("q") or "").strip().lower()
+    assets = [dict(a) for a in fetch_stock_quotes_safe()]
+    for a in assets: a["price_display"], a["change_display"] = fmt_price(a["price"], a["symbol"]), fmt_change(a["change"])
+    if search: assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
+    
+    page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_STOCKS)
+    rows = "".join(f'<tr><td><a href="/stocks/{h(a["symbol"])}">{h(a["symbol"])}</a></td><td id="price-{h(a["symbol"].replace("=", "_"))}">{h(a["price_display"])}</td><td id="change-{h(a["symbol"].replace("=", "_"))}" class="{a["dir"]}">{h(a["change_display"])}</td><td><span class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td></tr>' for a in page_items)
+
     content = f"""
     <section class="section">
-      <h1>Market Trends</h1>
-      <div class="table-shell">
-        <table class="market-table">
-          <tr><th>Asset</th><th>Price</th><th>Change</th></tr>
-          {rows or "<tr><td colspan='3'>No data</td></tr>"}
-        </table>
-      </div>
+      <h1>Stocks + Commodities</h1>
+      <div id="live-updated-stocks" class="live-stamp">Last updated: {h(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))} UTC</div>
+      <div class="table-shell"><table class="market-table"><tr><th>Asset</th><th>Price</th><th>1D</th><th>Signal</th></tr>{rows or "<tr><td colspan='4'>No data.</td></tr>"}</table></div>
       {legal_disclaimer_html()}
     </section>
     """
-    return nav_layout("Trends - AVA Markets", content)
+    return nav_layout("Stock Markets - AVA", content, extra_head=live_update_script("stock_list"))
 
 
-# Original routes (home, crypto, stocks, etc.) are still in your original file.
-# You can keep them as they are — they will now use the new batch fetch functions.
+@app.route("/crypto/<symbol>")
+def crypto_detail(symbol):
+    asset = get_crypto_detail(symbol)
+    if not asset: abort(404)
+    content = f"""
+    <section class="section">
+      <h1>{h(asset['symbol'])}</h1>
+      <div id="detail-price" style="font-size:2rem; font-weight:800;">{h(asset['price_display'])}</div>
+      <div id="detail-change" class="{asset['dir']}">{h(asset['change_display'])}</div>
+      <div class="card" style="margin-top:20px;">{asset['detail_candles']}</div>
+    </section>
+    """
+    return nav_layout(f"{asset['symbol']} - AVA Markets", content, extra_head=live_update_script("detail", symbol, "crypto"))
 
-# Background refresh and main block
+
+@app.route("/stocks/<symbol>")
+def stock_detail(symbol):
+    asset = get_stock_detail(symbol)
+    if not asset: abort(404)
+    content = f"""
+    <section class="section">
+      <h1>{h(asset['symbol'])}</h1>
+      <div id="detail-price" style="font-size:2rem; font-weight:800;">{h(asset['price_display'])}</div>
+      <div id="detail-change" class="{asset['dir']}">{h(asset['change_display'])}</div>
+      <div class="card" style="margin-top:20px;">{asset['detail_candles']}</div>
+    </section>
+    """
+    return nav_layout(f"{asset['symbol']} - AVA Markets", content, extra_head=live_update_script("detail", symbol, "stock"))
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if g.user: return redirect("/dashboard")
+    if request.method == "GET":
+        return nav_layout("Register", "<div class='form-shell'><div class='form-card'><h1>Register</h1><form method='POST'><input type='email' name='email' placeholder='Email' required><input type='password' name='password' placeholder='Password' required><button type='submit'>Register</button></form></div></div>")
+    email, password = request.form.get("email", "").strip(), request.form.get("password", "").strip()
+    user = db.create_user(email, password)
+    if not user: return redirect("/register")
+    token = db.create_session(user["id"])
+    resp = make_response(redirect("/dashboard"))
+    resp.set_cookie("session_token", token, httponly=True, samesite="Lax", secure=Config.COOKIE_SECURE)
+    return resp
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if g.user: return redirect("/dashboard")
+    if request.method == "GET":
+        return nav_layout("Login", "<div class='form-shell'><div class='form-card'><h1>Login</h1><form method='POST'><input type='email' name='email' placeholder='Email' required><input type='password' name='password' placeholder='Password' required><button type='submit'>Login</button></form></div></div>")
+    email, password = request.form.get("email", "").strip(), request.form.get("password", "").strip()
+    user = db.verify_user(email, password)
+    if not user: return redirect("/login")
+    token = db.create_session(user["id"])
+    resp = make_response(redirect("/dashboard"))
+    resp.set_cookie("session_token", token, httponly=True, samesite="Lax", secure=Config.COOKIE_SECURE)
+    return resp
+
+
+@app.route("/logout")
+def logout():
+    token = request.cookies.get("session_token")
+    if token: db.delete_session(token)
+    resp = make_response(redirect("/"))
+    resp.delete_cookie("session_token")
+    return resp
+
+
+@app.route("/dashboard")
+@require_login
+def dashboard():
+    return nav_layout("Dashboard", f"<section class='section'><h1>Welcome {h(g.user['email'])}</h1><p>Your tier: {h(g.user['tier'])}</p></section>")
+
+
+@app.route("/pricing")
+def pricing():
+    return nav_layout("Pricing", "<section class='section'><h1>Pricing</h1><div class='market-grid'><div class='price-card'><h3>Basic</h3><p>$9/mo</p></div><div class='price-card'><h3>Pro</h3><p>$29/mo</p></div></div></section>")
+
+
+@app.errorhandler(404)
+def not_found(e): return nav_layout("404", "<section class='section'><h1>404 Not Found</h1></section>"), 404
+
+@app.errorhandler(500)
+def server_error(e): return nav_layout("500", "<section class='section'><h1>500 Error</h1></section>"), 500
+
+
+_bg_started = False
+
 def background_refresh_loop():
     while True:
-        try:
-            fetch_crypto_quotes_safe(force_refresh=True)
-            fetch_stock_quotes_safe(force_refresh=True)
-            warm_detail_caches()
-            db.purge_expired_rows()
-        except Exception as e:
-            logger.warning(f"Background refresh error: {e}")
+        try: fetch_crypto_quotes_safe(force_refresh=True)
+        except: pass
+        try: fetch_stock_quotes_safe(force_refresh=True)
+        except: pass
+        try: warm_detail_caches()
+        except: pass
+        try: refresh_signal_outcomes()
+        except: pass
+        try: db.purge_expired_rows()
+        except: pass
         time.sleep(max(60, Config.BACKGROUND_REFRESH_SECONDS))
 
 
 def start_background_refresh():
-    if Config.ENABLE_BACKGROUND_REFRESH and Config.BACKGROUND_REFRESH_LEADER:
-        t = threading.Thread(target=background_refresh_loop, daemon=True)
-        t.start()
-        logger.info("Background refresh thread started.")
+    global _bg_started
+    if _bg_started: return
+    if not Config.ENABLE_BACKGROUND_REFRESH or not Config.BACKGROUND_REFRESH_LEADER: return
 
+    def init_and_loop():
+        # INITIAL FAST WARMUP (Solves the 502 error)
+        try: fetch_crypto_quotes_safe(force_refresh=True)
+        except: pass
+        try: fetch_stock_quotes_safe(force_refresh=True)
+        except: pass
+        
+        # CONTINUOUS LOOP
+        background_refresh_loop()
 
-# Initial cache warm-up
-try:
-    fetch_crypto_quotes_safe(force_refresh=True)
-except Exception as e:
-    logger.warning(f"Initial crypto warm failed: {e}")
+    t = threading.Thread(target=init_and_loop, daemon=True)
+    t.start()
+    _bg_started = True
+    logger.info("Background thread started. App booted successfully.")
 
-try:
-    fetch_stock_quotes_safe(force_refresh=True)
-except Exception as e:
-    logger.warning(f"Initial stock warm failed: {e}")
-
-warm_detail_caches()
 
 if (not Config.DEBUG) or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     start_background_refresh()
-
 
 if __name__ == "__main__":
     app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
