@@ -156,7 +156,9 @@ def fmt_price(v, s=None): return f"€{v:,.2f}" if s == "ASML" else f"${v:,.2f}"
 def fmt_change(v): return f"{v:+.2f}%"
 
 class Database:
-    def __init__(self, path): self.path, self.init() = path, None
+    def __init__(self, path):
+        self.path = path
+        self.init()
     def conn(self):
         c = sqlite3.connect(self.path, check_same_thread=False)
         c.row_factory = sqlite3.Row
