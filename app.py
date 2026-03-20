@@ -119,14 +119,19 @@ STOCK_DOMAINS = {
 def h(v): return html.escape("" if v is None else str(v), quote=True)
 
 def get_stock_logo(sym): 
-    domain = STOCK_DOMAINS.get(sym.upper())
+    domain = STOCK_DOMAINS.get(str(sym).upper())
     return f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{domain}&size=128" if domain else ""
 
-def get_crypto_logo(sym): return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{sym.lower()}.png"
-def get_asset_icon(sym): return {"GC=F": "🥇", "SI=F": "🥈", "PL=F": "🔘", "CL=F": "🛢️", "SIG": "💎"}.get(sym.upper(), "📈")
-def pct_change(price, prev): return 0.0 if prev in [0, None] else ((price - prev) / prev) * 100.0
-def fmt_price(v, s=None): return f"€{v:,.2f}" if s == "ASML" else f"${v:,.2f}" if v >= 1 else f"${v:.4f}" if v >= 0.01 else f"${v:.8f}"
-def fmt_change(v): return f"{v:+.2f}%"
+def get_crypto_logo(sym): return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{str(sym).lower()}.png"
+def get_asset_icon(sym): return {"GC=F": "🥇", "SI=F": "🥈", "PL=F": "🔘", "CL=F": "🛢️", "SIG": "💎"}.get(str(sym).upper(), "📈")
+def fmt_price(v): 
+    try:
+        vf = float(v)
+        return f"${vf:,.2f}" if vf >= 1 else f"${vf:.4f}" if vf >= 0.01 else f"${vf:.8f}"
+    except: return "$0.00"
+def fmt_change(v): 
+    try: return f"{float(v):+.2f}%"
+    except: return "+0.00%"
 
 class Database:
     def __init__(self, path):
@@ -147,11 +152,16 @@ class Database:
         c = self.conn()
         row = c.execute("SELECT payload_json, updated_at FROM market_cache WHERE cache_key = ?", (key,)).fetchone()
         c.close()
-        if row and (int(time.time()) - int(row["updated_at"]) <= ttl): return json.loads(row["payload_json"])
+        if row and (int(time.time()) - int(row["updated_at"]) <= ttl): 
+            try: return json.loads(row["payload_json"])
+            except: return None
         return None
     def cache_get_stale(self, key):
         c = self.conn(); row = c.execute("SELECT payload_json FROM market_cache WHERE cache_key = ?", (key,)).fetchone(); c.close()
-        return json.loads(row["payload_json"]) if row else None
+        if row:
+            try: return json.loads(row["payload_json"])
+            except: return None
+        return None
     def cache_set(self, key, payload):
         c = self.conn()
         c.execute("INSERT INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET payload_json = excluded.payload_json, updated_at = excluded.updated_at", (key, json.dumps(payload), int(time.time())))
@@ -172,7 +182,13 @@ def set_cached_payload(key, payload):
     MEM_CACHE[key] = {"data": payload, "updated_at": now}
     db.cache_set(key, payload)
 
-# ==========================================
+def compute_light_signal(change): 
+    try:
+        c = float(change)
+        return "BUY" if c >= 2.0 else "SELL" if c <= -2.0 else "HOLD"
+    except: return "HOLD"
+
+    # ==========================================
 # NON-BLOCKING API FETCHERS (BACKGROUND ONLY)
 # ==========================================
 
@@ -185,7 +201,7 @@ def _perform_crypto_fetch():
             market_data = r.json().get("data", {}).get("ticker", [])
             market_map = {}
             for item in market_data:
-                sym = item.get("symbol", "")
+                sym = str(item.get("symbol", ""))
                 if sym.endswith("-USDT"):
                     market_map[sym.split("-")[0]] = item
 
@@ -193,8 +209,11 @@ def _perform_crypto_fetch():
                 item = market_map.get(symbol)
                 if not item: continue
                 
-                price = float(item.get("last", 0))
-                change = float(item.get("changeRate", 0)) * 100.0
+                try:
+                    price = float(item.get("last", 0))
+                    change = float(item.get("changeRate", 0)) * 100.0
+                except:
+                    continue
                 
                 if price > 0:
                     results.append({
@@ -205,21 +224,24 @@ def _perform_crypto_fetch():
     except Exception as e:
         logger.error(f"KuCoin fetch failed: {e}")
 
-    # FALLBACK API: MEXC (Massive exchange, never geo-blocks. Kicks in instantly if KuCoin fails)
+    # FALLBACK API: MEXC (Kicks in instantly if KuCoin fails)
     if not results:
         try:
             logger.info("Using MEXC fallback for Crypto...")
             r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=15)
             if r.status_code == 200:
                 market_data = r.json()
-                market_map = {item.get("symbol", "").replace("USDT", ""): item for item in market_data if item.get("symbol", "").endswith("USDT")}
+                market_map = {str(item.get("symbol", "")).replace("USDT", ""): item for item in market_data if str(item.get("symbol", "")).endswith("USDT")}
                 
                 for symbol, name in CRYPTO_TOP_90:
                     item = market_map.get(symbol)
                     if not item: continue
                     
-                    price = float(item.get("lastPrice", 0))
-                    change = float(item.get("priceChangePercent", 0)) * 100.0 # MEXC returns raw decimal
+                    try:
+                        price = float(item.get("lastPrice", 0))
+                        change = float(item.get("priceChangePercent", 0)) * 100.0 # MEXC returns raw decimal
+                    except:
+                        continue
                     
                     if price > 0:
                         results.append({
@@ -250,9 +272,12 @@ def _perform_stock_fetch():
             # Map the results
             res_map = {}
             for item in data:
-                sym = item.get("symbol")
-                price = float(item.get("regularMarketPrice", 0))
-                change = float(item.get("regularMarketChangePercent", 0)) # Official 24h change
+                sym = str(item.get("symbol", ""))
+                try:
+                    price = float(item.get("regularMarketPrice", 0))
+                    change = float(item.get("regularMarketChangePercent", 0)) # Official 24h change
+                except:
+                    continue
                 
                 if price > 0:
                     res_map[sym] = {
@@ -287,6 +312,7 @@ def fetch_stock_quotes_safe():
 # ==========================================
 
 def paginate(items, page, per_page):
+    if not items: return [], 0, 1, 1
     total = len(items)
     pages = max(1, math.ceil(total / per_page)) if total > 0 else 1
     page = max(1, min(page, pages))
@@ -354,12 +380,14 @@ def live_update_script(page_type):
 
 @app.route("/api/live/crypto-list")
 def api_live_crypto():
-    items = [{"symbol": a["symbol"], "price_display": fmt_price(a["price"], a["symbol"]), "change_display": fmt_change(a["change"]), "dir": a["dir"], "signal": a["signal"]} for a in fetch_crypto_quotes_safe()]
+    assets = fetch_crypto_quotes_safe()
+    items = [{"symbol": a.get("symbol",""), "price_display": fmt_price(a.get("price",0)), "change_display": fmt_change(a.get("change",0)), "dir": a.get("dir","down"), "signal": a.get("signal","HOLD")} for a in assets]
     return jsonify({"updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "items": items})
 
 @app.route("/api/live/stocks-list")
 def api_live_stocks():
-    items = [{"symbol": a["symbol"], "price_display": fmt_price(a["price"], a["symbol"]), "change_display": fmt_change(a["change"]), "dir": a["dir"], "signal": a["signal"]} for a in fetch_stock_quotes_safe()]
+    assets = fetch_stock_quotes_safe()
+    items = [{"symbol": a.get("symbol",""), "price_display": fmt_price(a.get("price",0)), "change_display": fmt_change(a.get("change",0)), "dir": a.get("dir","down"), "signal": a.get("signal","HOLD")} for a in assets]
     return jsonify({"updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "items": items})
 
 @app.route("/")
@@ -398,25 +426,24 @@ def crypto():
     assets = fetch_crypto_quotes_safe()
     
     if search:
-        assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
+        assets = [a for a in assets if search in str(a.get("symbol","")).lower() or search in str(a.get("name","")).lower()]
         
     page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_CRYPTO)
     
     rows = ""
     for a in page_items:
-        # Fallback to standard emoji if image is broken
         fallback = f"<span class='asset-icon' style='display:none;'>{h(a.get('icon','₿'))}</span>"
-        media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';">{fallback}'
+        media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';">{fallback}'
 
         rows += f"""
         <tr>
           <td class="asset-name">
-            <strong class="asset-row">{media} {h(a["symbol"])}</strong>
-            <span>{h(a["name"])}</span>
+            <strong class="asset-row">{media} {h(a.get("symbol",""))}</strong>
+            <span>{h(a.get("name",""))}</span>
           </td>
-          <td id="price-{h(a["symbol"])}">{fmt_price(a["price"])}</td>
-          <td id="change-{h(a["symbol"])}" class="{a["dir"]}">{fmt_change(a["change"])}</td>
-          <td><span id="signal-{h(a["symbol"])}" class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td>
+          <td id="price-{h(a.get('symbol',''))}">{fmt_price(a.get("price",0))}</td>
+          <td id="change-{h(a.get('symbol',''))}" class="{a.get('dir','down')}">{fmt_change(a.get("change",0))}</td>
+          <td><span id="signal-{h(a.get('symbol',''))}" class="signal signal-{a.get('signal','HOLD').lower()}">{a.get('signal','HOLD')}</span></td>
         </tr>
         """
         
@@ -448,30 +475,29 @@ def stocks():
     assets = fetch_stock_quotes_safe()
     
     if search:
-        assets = [a for a in assets if search in a["symbol"].lower() or search in a["name"].lower()]
+        assets = [a for a in assets if search in str(a.get("symbol","")).lower() or search in str(a.get("name","")).lower()]
         
     page_items, total, pages, current = paginate(assets, page, Config.PAGE_SIZE_STOCKS)
     
     rows = ""
     for a in page_items:
-        safe_id = h(a["symbol"].replace("=", "_"))
+        safe_id = h(str(a.get("symbol","")).replace("=", "_"))
         
-        # Fallback to standard emoji (🥇 for gold, 📈 for stocks) if image is broken
         fallback = f"<span class='asset-icon' style='display:none;'>{h(a.get('icon','📈'))}</span>"
         if a.get("logo"):
-            media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';">{fallback}'
+            media = f'<img class="asset-logo" src="{h(a.get("logo",""))}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';">{fallback}'
         else:
             media = f"<span class='asset-icon'>{h(a.get('icon','📈'))}</span>"
         
         rows += f"""
         <tr>
           <td class="asset-name">
-            <strong class="asset-row">{media} {h(a["symbol"])}</strong>
-            <span>{h(a["name"])}</span>
+            <strong class="asset-row">{media} {h(a.get("symbol",""))}</strong>
+            <span>{h(a.get("name",""))}</span>
           </td>
-          <td id="price-{safe_id}">{fmt_price(a["price"], a["symbol"])}</td>
-          <td id="change-{safe_id}" class="{a["dir"]}">{fmt_change(a["change"])}</td>
-          <td><span id="signal-{safe_id}" class="signal signal-{a["signal"].lower()}">{a["signal"]}</span></td>
+          <td id="price-{safe_id}">{fmt_price(a.get("price",0))}</td>
+          <td id="change-{safe_id}" class="{a.get('dir','down')}">{fmt_change(a.get("change",0))}</td>
+          <td><span id="signal-{safe_id}" class="signal signal-{a.get('signal','HOLD').lower()}">{a.get('signal','HOLD')}</span></td>
         </tr>
         """
 
@@ -527,5 +553,3 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not Config.DEBUG:
 
 if __name__ == "__main__":
     app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
-
-def compute_light_signal(change): return "BUY" if change >= 2.0 else "SELL" if change <= -2.0 else "HOLD"
