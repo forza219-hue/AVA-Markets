@@ -981,6 +981,10 @@ def get_web_user():
 @app.before_request
 def load_req():
     g.user = get_web_user()
+    if g.user and str(g.user.get("email", "")).lower() == Config.ADMIN_EMAIL:
+        if g.user.get("tier") != "elite":
+            db.upgrade_user(g.user["id"], "elite", billing_cycle="admin")
+            g.user = db.get_user_by_id(g.user["id"])
 
 def is_admin():
     return bool(g.user and str(g.user.get("email", "")).lower() == Config.ADMIN_EMAIL)
