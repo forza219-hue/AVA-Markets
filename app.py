@@ -37,9 +37,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - AVA - %(levelname)
 logger = logging.getLogger(__name__)
 
 
-# =========================================================
-# CONFIG
-# =========================================================
 class Config:
     APP_NAME = os.environ.get("APP_NAME", "AVA Markets").strip()
 
@@ -89,9 +86,6 @@ if stripe and Config.STRIPE_SECRET_KEY:
     stripe.api_key = Config.STRIPE_SECRET_KEY
 
 
-# =========================================================
-# APP
-# =========================================================
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["SECRET_KEY"] = Config.SECRET_KEY
@@ -105,9 +99,6 @@ else:
     limiter = _NoopLimiter()
 
 
-# =========================================================
-# UI
-# =========================================================
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 :root{
@@ -303,10 +294,6 @@ p{color:var(--muted);line-height:1.7;font-size:1rem}
 }
 """
 
-
-# =========================================================
-# DATA
-# =========================================================
 CRYPTO_TOP_90 = [
     ("BTC", "Bitcoin"), ("ETH", "Ethereum"), ("BNB", "BNB"), ("SOL", "Solana"), ("XRP", "XRP"),
     ("DOGE", "Dogecoin"), ("ADA", "Cardano"), ("AVAX", "Avalanche"), ("LINK", "Chainlink"), ("DOT", "Polkadot"),
@@ -414,9 +401,6 @@ SYMBOL_LEARN = {
 }
 
 
-# =========================================================
-# HELPERS
-# =========================================================
 def h(v):
     return html.escape("" if v is None else str(v), quote=True)
 
@@ -475,9 +459,6 @@ def render_pagination(base_url, current, pages):
     return "".join(parts)
 
 
-# =========================================================
-# DATABASE
-# =========================================================
 class Database:
     def __init__(self, path):
         self.path = path
@@ -994,9 +975,6 @@ db = Database(Config.DATABASE)
 MEM_CACHE = {}
 
 
-# =========================================================
-# AUTH
-# =========================================================
 def get_web_user():
     return db.get_user_by_session(request.cookies.get("session_token"))
 
@@ -1050,9 +1028,6 @@ def set_session_cookie(resp, token):
     return resp
 
 
-# =========================================================
-# MARKET CACHE + FETCHERS
-# =========================================================
 def get_cached_payload(key, ttl):
     mem = MEM_CACHE.get(key)
     if mem and (int(time.time()) - mem["updated_at"] <= ttl):
@@ -1221,9 +1196,6 @@ def fetch_stock_candles(symbol):
     return []
 
 
-# =========================================================
-# AVA BRAIN
-# =========================================================
 def calc_ema(prices, period):
     if not prices:
         return []
@@ -1519,9 +1491,6 @@ def evaluate_signal_history_outcomes():
             db.update_signal_outcome(row["history_id"], outcome, note)
 
 
-# =========================================================
-# ALERTS / EMAIL / BROADCAST
-# =========================================================
 def send_email(to_email, subject, html_body, text_body=None):
     if not Config.RESEND_API_KEY:
         logger.info(f"[EMAIL STUB] To={to_email} Subject={subject}")
@@ -1615,9 +1584,6 @@ def maybe_broadcast_top_signals(signals):
                 db.log_broadcast("discord", msg_hash)
 
 
-# =========================================================
-# BILLING
-# =========================================================
 PLAN_META = {
     "pro_monthly": {"tier": "pro", "billing": "monthly", "price_id": Config.STRIPE_PRICE_PRO_MONTHLY},
     "pro_yearly": {"tier": "pro", "billing": "yearly", "price_id": Config.STRIPE_PRICE_PRO_YEARLY},
@@ -1650,9 +1616,6 @@ def create_billing_portal(customer_id):
     return stripe.billing_portal.Session.create(customer=customer_id, return_url=f"{Config.DOMAIN}/dashboard")
 
 
-# =========================================================
-# UI HELPERS
-# =========================================================
 def draw_candles_html(candles):
     if not candles:
         return "<div class='candle-container' style='justify-content:center; align-items:center; color:#cbd5e1;'>No chart data available.</div>"
@@ -1718,13 +1681,15 @@ def top_signal_cards_html(signals, blurred=False):
         """
         cards += inner
 
+    fallback_html = '<p class="muted">No active signals yet.</p>'
+
     if not blurred:
-        return f"<div class='grid-3'>{cards or '<p class=\"muted\">No active signals yet.</p>'}</div>"
+        return f"<div class='grid-3'>{cards or fallback_html}</div>"
 
     return f"""
     <div class="blur-lock">
       <div class="blurred">
-        <div class="grid-3">{cards or '<p class="muted">No active signals yet.</p>'}</div>
+        <div class="grid-3">{cards or fallback_html}</div>
       </div>
       <div class="blur-overlay">
         <div class="lock-card">
@@ -1824,9 +1789,6 @@ def live_update_script(page_type):
     </script>"""
 
 
-# =========================================================
-# PORTFOLIO ANALYTICS
-# =========================================================
 def current_price_for(symbol, asset_type):
     symbol = symbol.upper()
     if asset_type == "crypto":
@@ -1896,9 +1858,6 @@ def build_portfolio_analytics(user_id):
     }
 
 
-# =========================================================
-# ROUTES
-# =========================================================
 @app.route("/api/live/crypto-list")
 def api_live_crypto():
     assets = fetch_crypto_quotes_safe()
@@ -2303,6 +2262,8 @@ def portfolio():
 
     best = analytics["best"]
     worst = analytics["worst"]
+    best_text = f"{h(best['symbol'])} ({best['pnl_pct']:+.2f}%)" if best else "N/A"
+    worst_text = f"{h(worst['symbol'])} ({worst['pnl_pct']:+.2f}%)" if worst else "N/A"
 
     content = f"""
     <section class="section">
@@ -2335,8 +2296,8 @@ def portfolio():
           <h3>Allocation Overview</h3>
           <p><strong>Crypto Allocation:</strong> {analytics['crypto_alloc']:.2f}%</p>
           <p><strong>Stock Allocation:</strong> {analytics['stock_alloc']:.2f}%</p>
-          <p><strong>Best Position:</strong> {h(best['symbol']) if best else 'N/A'} {f"({best['pnl_pct']:+.2f}%)" if best else ''}</p>
-          <p><strong>Worst Position:</strong> {h(worst['symbol']) if worst else 'N/A'} {f"({worst['pnl_pct']:+.2f}%)" if worst else ''}</p>
+          <p><strong>Best Position:</strong> {best_text}</p>
+          <p><strong>Worst Position:</strong> {worst_text}</p>
         </div>
       </div>
 
@@ -2993,9 +2954,6 @@ def debug_promote(tier):
     return redirect("/dashboard")
 
 
-# =========================================================
-# BACKGROUND LOOP
-# =========================================================
 _bg_started = False
 
 def start_background_loop():
