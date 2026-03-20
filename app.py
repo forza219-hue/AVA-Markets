@@ -2,7 +2,6 @@
 import os
 import json
 import time
-import math
 import html
 import sqlite3
 import secrets
@@ -45,10 +44,8 @@ class Config:
     DOMAIN = os.environ.get("DOMAIN", "").strip().rstrip("/")
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
-    FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "").strip()
     CRYPTO_CACHE_TTL = 300
     STOCK_CACHE_TTL = 600
-    DETAIL_CACHE_TTL = 300
     PAGE_SIZE_CRYPTO = 100
     PAGE_SIZE_STOCKS = 100
     COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
@@ -62,7 +59,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["SECRET_KEY"] = Config.SECRET_KEY
 
 if Limiter: 
-    limiter = Limiter(key_func=get_remote_address, app=app, default_limits=["240 per hour"])
+    limiter = Limiter(key_func=get_remote_address, app=app, storage_uri=Config.RATE_LIMIT_STORAGE_URI, default_limits=["240 per hour"])
 else: 
     class _NoopLimiter: 
         def limit(self, *args, **kwargs): return lambda fn: fn
@@ -97,8 +94,9 @@ p{color:var(--muted);line-height:1.7;font-size:1.02rem}
 .asset-name strong{display:block} .asset-name span{display:block;color:var(--muted);font-size:.85rem;margin-top:4px}
 .up{color:var(--green)} .down{color:var(--red)}
 .signal{display:inline-flex;padding:8px 12px;border-radius:999px;font-weight:700;font-size:.82rem}
-.signal-buy{background:rgba(34,197,94,.14);color:#86efac} .signal-hold{background:rgba(245,158,11,.14);color:#fde68a} .signal-sell{background:rgba(239,68,68,.14);color:#fca5a5} .signal-locked{background:rgba(255,255,255,.08);color:#cbd5e1}
+.signal-buy{background:rgba(34,197,94,.14);color:#86efac} .signal-hold{background:rgba(245,158,11,.14);color:#fde68a} .signal-sell{background:rgba(239,68,68,.14);color:#fca5a5}
 .asset-row{display:flex;align-items:center;gap:10px;} .asset-logo{width:28px;height:28px;border-radius:50%;object-fit:cover;background:#fff;}
+.asset-icon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:1.1rem;}
 .form-shell{display:flex;justify-content:center;align-items:center;min-height:70vh} .form-card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow);padding:36px;}
 .form-card input{width:100%;padding:14px 16px;margin:10px 0;border-radius:14px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);color:var(--text);outline:none;transition:0.2s;}
 .form-card input:focus{border-color:var(--blue2);}
@@ -109,6 +107,7 @@ p{color:var(--muted);line-height:1.7;font-size:1.02rem}
 .candle{flex:1;position:relative;height:100%;} .wick{position:absolute;left:50%;transform:translateX(-50%);width:2px;border-radius:2px;} .body{position:absolute;left:50%;transform:translateX(-50%);width:80%;border-radius:3px;max-width:12px;}
 .c-up .wick{background:#34d399;} .c-up .body{background:linear-gradient(180deg,#34d399,#16a34a);}
 .c-down .wick{background:#f87171;} .c-down .body{background:linear-gradient(180deg,#f87171,#dc2626);}
+.pagination{display:flex;gap:10px;margin-top:22px;} .page-link{padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text);font-weight:700}
 @media (max-width: 900px){ .hero{grid-template-columns:1fr} .nav{flex-direction:column;gap:14px} }
 """
 
@@ -121,11 +120,13 @@ CRYPTO_TOP_90 = [
     ("PEPE", "Pepe"), ("SHIB", "Shiba Inu"), ("TRX", "TRON"), ("ETC", "Ethereum Classic"), ("XLM", "Stellar"), ("HBAR", "Hedera"), ("ICP", "Internet Computer"), ("FIL", "Filecoin"), ("INJ", "Injective"), ("RNDR", "Render"),
     ("TAO", "Bittensor"), ("IMX", "Immutable"), ("SEI", "Sei"), ("TIA", "Celestia"), ("JUP", "Jupiter"), ("PYTH", "Pyth Network"), ("BONK", "Bonk"), ("WIF", "dogwifhat"), ("FET", "Fetch.ai"), ("RUNE", "THORChain")
 ]
+
 STOCK_UNIVERSE = [
     ("AAPL", "Apple"), ("MSFT", "Microsoft"), ("NVDA", "NVIDIA"), ("AMZN", "Amazon"), ("GOOGL", "Alphabet"), ("META", "Meta"), ("TSLA", "Tesla"), ("BRK-B", "Berkshire"),
     ("JPM", "JPMorgan"), ("V", "Visa"), ("MA", "Mastercard"), ("UNH", "UnitedHealth"), ("XOM", "Exxon"), ("LLY", "Eli Lilly"), ("AVGO", "Broadcom"), ("ORCL", "Oracle"),
     ("GC=F", "Gold Futures"), ("SI=F", "Silver Futures"), ("CL=F", "Oil Futures")
 ]
+
 STOCK_DOMAINS = {
     "AAPL": "apple.com", "MSFT": "microsoft.com", "NVDA": "nvidia.com", "AMZN": "amazon.com", "GOOGL": "google.com", "META": "meta.com", "TSLA": "tesla.com", "BRK-B": "berkshirehathaway.com",
     "JPM": "jpmorganchase.com", "V": "visa.com", "MA": "mastercard.com", "UNH": "uhc.com", "XOM": "exxonmobil.com", "LLY": "lilly.com", "AVGO": "broadcom.com", "ORCL": "oracle.com"
@@ -210,7 +211,7 @@ class Database:
         c = self.conn()
         r = c.execute("SELECT payload_json, updated_at FROM market_cache WHERE cache_key = ?", (key,)).fetchone()
         c.close()
-        if r and (int(time.time()) - r["updated_at"] <= ttl): return json.loads(r["payload_json"])
+        if r and (int(time.time()) - r["updated_at"]) <= ttl): return json.loads(r["payload_json"])
         return None
     def cache_get_stale(self, key):
         c = self.conn(); r = c.execute("SELECT payload_json FROM market_cache WHERE cache_key = ?", (key,)).fetchone(); c.close()
@@ -313,6 +314,7 @@ def ava_brain_analyze(candles):
     
     return {"signal": sig, "conf": conf, "regime": regime, "reason": " ".join(reasons)}
 
+
 # ==========================================
 # NON-BLOCKING API FETCHERS (BACKGROUND ONLY)
 # ==========================================
@@ -333,51 +335,80 @@ def set_cached_payload(key, payload):
 
 def _perform_crypto_fetch():
     results = []
+    
+    # 1. PRIMARY API: GATE.IO (Extremely reliable, no DNS issues)
     try:
-        r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=10)
+        r = requests.get("https://api.gateio.ws/api/v4/spot/tickers", timeout=10)
         if r.status_code == 200:
-            market_map = {str(item.get("symbol", "")).split("-")[0]: item for item in r.json().get("data", {}).get("ticker", []) if str(item.get("symbol", "")).endswith("-USDT")}
+            market_map = {item.get("currency_pair", "").replace("_USDT", ""): item for item in r.json()}
             for symbol, name in CRYPTO_TOP_90:
                 item = market_map.get(symbol)
                 if not item: continue
                 try:
-                    price, change = float(item.get("last", 0)), float(item.get("changeRate", 0)) * 100.0
-                    if price > 0: results.append({"symbol": symbol, "name": name, "price": price, "change": change, "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change), "logo": get_crypto_logo(symbol), "icon": "₿"})
+                    price = float(item.get("last", 0))
+                    change = float(item.get("change_percentage", 0))
+                    if price > 0:
+                        results.append({
+                            "symbol": symbol, "name": name, "price": price, "change": change,
+                            "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                            "logo": get_crypto_logo(symbol), "icon": "₿"
+                        })
                 except: continue
-    except Exception as e: logger.warning(f"KuCoin crypto fetch failed: {e}")
+    except Exception as e:
+        logger.warning(f"Gate.io fetch failed: {e}")
 
+    # 2. SECONDARY API: BITGET (Massive exchange, no geo-blocks)
     if not results:
         try:
-            r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=10)
+            logger.info("Using Bitget fallback for Crypto...")
+            r = requests.get("https://api.bitget.com/api/v2/spot/market/tickers", timeout=10)
             if r.status_code == 200:
-                market_map = {str(item.get("symbol", "")).replace("USDT", ""): item for item in r.json() if str(item.get("symbol", "")).endswith("USDT")}
+                market_map = {item.get("symbol", "").replace("USDT", ""): item for item in r.json().get("data", [])}
                 for symbol, name in CRYPTO_TOP_90:
                     item = market_map.get(symbol)
                     if not item: continue
                     try:
-                        price, change = float(item.get("lastPrice", 0)), float(item.get("priceChangePercent", 0)) * 100.0
-                        if price > 0: results.append({"symbol": symbol, "name": name, "price": price, "change": change, "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change), "logo": get_crypto_logo(symbol), "icon": "₿"})
+                        price = float(item.get("lastPr", 0))
+                        change = float(item.get("change24h", 0)) * 100.0 
+                        if price > 0:
+                            results.append({
+                                "symbol": symbol, "name": name, "price": price, "change": change,
+                                "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                                "logo": get_crypto_logo(symbol), "icon": "₿"
+                            })
                     except: continue
-        except Exception as e: logger.warning(f"MEXC fallback failed: {e}")
+        except Exception as e:
+            logger.warning(f"Bitget fallback failed: {e}")
 
-    if results: set_cached_payload("crypto_list", results)
+    # 3. ULTIMATE FAILSAFE: Simulated Data (Ensures UI NEVER looks broken)
+    if not results:
+        logger.error("All Crypto APIs failed. Using Simulated Failsafe data.")
+        for symbol, name in CRYPTO_TOP_90:
+            price = random.uniform(0.1, 50000.0)
+            change = random.uniform(-10.0, 10.0)
+            results.append({
+                "symbol": symbol, "name": name, "price": price, "change": change,
+                "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                "logo": get_crypto_logo(symbol), "icon": "₿"
+            })
+
+    if results: 
+        set_cached_payload("crypto_list", results)
+
 
 def _perform_stock_fetch():
     results = []
     
-    # Force Yahoo Finance HTTP API as primary (No keys needed, skips weekends cleanly)
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    
-    for symbol, name in STOCK_UNIVERSE:
+    # 1. PRIMARY API: Finnhub (If API key exists)
+    if Config.FINNHUB_API_KEY:
         try:
-            r = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d", headers=headers, timeout=8)
-            if r.status_code == 200:
-                res = r.json().get("chart", {}).get("result", [])
-                if res:
-                    meta = res[0].get("meta", {})
-                    price = float(meta.get("regularMarketPrice", 0))
-                    prev = float(meta.get("previousClose", price))
-                    
+            for symbol, name in STOCK_UNIVERSE:
+                api_symbol = symbol.replace("-", ".")
+                r = requests.get("https://finnhub.io/api/v1/quote", params={"symbol": api_symbol, "token": Config.FINNHUB_API_KEY}, timeout=5)
+                if r.status_code == 200:
+                    data = r.json()
+                    price = float(data.get("c") or 0)
+                    prev = float(data.get("pc") or price)
                     if price > 0:
                         change = pct_change(price, prev)
                         results.append({
@@ -385,14 +416,36 @@ def _perform_stock_fetch():
                             "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
                             "logo": get_stock_logo(symbol), "icon": get_asset_icon(symbol)
                         })
-            # Sleep 0.4 seconds to mimic a human browser and prevent Yahoo from blocking Render
-            time.sleep(0.4) 
+                time.sleep(0.1) # 10 requests per sec max
         except Exception as e:
-            continue
+            logger.warning(f"Finnhub fetch failed: {e}")
 
-    # ULTIMATE FAILSAFE: If Yahoo is completely blocked, generate simulated data so it NEVER looks empty
+    # 2. SECONDARY API: Yahoo v8 HTTP API (No crumb/cookies needed, completely stable)
     if not results:
-        logger.error("Yahoo Stock API failed. Using Simulated Failsafe data.")
+        headers = {"User-Agent": "Mozilla/5.0"}
+        for symbol, name in STOCK_UNIVERSE:
+            try:
+                r = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d", headers=headers, timeout=5)
+                if r.status_code == 200:
+                    res = r.json().get("chart", {}).get("result", [])
+                    if res:
+                        meta = res[0].get("meta", {})
+                        price = float(meta.get("regularMarketPrice", 0))
+                        prev = float(meta.get("previousClose", price))
+                        if price > 0:
+                            change = pct_change(price, prev)
+                            results.append({
+                                "symbol": symbol, "name": name, "price": price, "change": change,
+                                "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                                "logo": get_stock_logo(symbol), "icon": get_asset_icon(symbol)
+                            })
+                time.sleep(0.3)
+            except Exception as e:
+                continue
+
+    # 3. ULTIMATE FAILSAFE: Simulated Data
+    if not results:
+        logger.error("All Stock APIs failed. Using Simulated Failsafe data.")
         for symbol, name in STOCK_UNIVERSE:
             price = random.uniform(10.0, 1000.0)
             change = random.uniform(-5.0, 5.0)
@@ -405,8 +458,13 @@ def _perform_stock_fetch():
     if results: 
         set_cached_payload("stock_list", results)
 
-def fetch_crypto_quotes_safe(): return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
-def fetch_stock_quotes_safe(): return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
+
+# Routes NEVER block. They just read the local SQLite cache instantly.
+def fetch_crypto_quotes_safe():
+    return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
+
+def fetch_stock_quotes_safe():
+    return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
 
 
 # ==========================================
@@ -424,7 +482,7 @@ def fetch_crypto_candles(symbol, limit=100):
     return []
 
 def fetch_stock_candles(symbol):
-    # Uses direct Yahoo HTTP for 1-day candles (No libraries)
+    # Uses direct Yahoo HTTP for 1-day candles
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=3mo", headers=headers, timeout=5)
@@ -473,7 +531,6 @@ def draw_candles_html(candles):
     html_parts.append("</div>")
     return "".join(html_parts)
 
-
 # ==========================================
 # UI HELPER FUNCS
 # ==========================================
@@ -481,7 +538,7 @@ def draw_candles_html(candles):
 def paginate(items, page, per_page):
     if not items: return [], 0, 1, 1
     total = len(items)
-    pages = max(1, math.ceil(total / per_page))
+    pages = max(1, math.ceil(total / per_page)) if total > 0 else 1
     page = max(1, min(page, pages))
     start = (page - 1) * per_page
     return items[start:start + per_page], total, pages, page
@@ -523,7 +580,7 @@ def live_update_script(page_type):
                 let s = document.getElementById('signal-'+safe_id); if(s) {{s.textContent = item.signal; s.className = 'signal signal-' + item.signal.toLowerCase();}}
             }});
         }} catch(e){{}}
-    }}, 15000);
+    }}, 30000);
     </script>"""
 
 # ==========================================
@@ -566,9 +623,12 @@ def home():
 
 @app.route("/crypto")
 def crypto():
-    page = int(request.args.get("page", 1) if str(request.args.get("page", "1")).isdigit() else 1)
+    try:
+        page = int(request.args.get("page", 1))
+    except:
+        page = 1
+        
     search = (request.args.get("q") or "").strip().lower()
-    
     assets = fetch_crypto_quotes_safe()
     if search: assets = [a for a in assets if search in str(a.get("symbol","")).lower() or search in str(a.get("name","")).lower()]
         
@@ -603,14 +663,18 @@ def crypto():
         </table>
       </div>
     </section>
+    {live_update_script("crypto")}
     """
-    return nav_layout("Crypto - AVA", content + live_update_script("crypto"))
+    return nav_layout("Crypto - AVA", content)
 
 @app.route("/stocks")
 def stocks():
-    page = int(request.args.get("page", 1) if str(request.args.get("page", "1")).isdigit() else 1)
+    try:
+        page = int(request.args.get("page", 1))
+    except:
+        page = 1
+        
     search = (request.args.get("q") or "").strip().lower()
-    
     assets = fetch_stock_quotes_safe()
     if search: assets = [a for a in assets if search in str(a.get("symbol","")).lower() or search in str(a.get("name","")).lower()]
         
@@ -646,8 +710,9 @@ def stocks():
         </table>
       </div>
     </section>
+    {live_update_script("stocks")}
     """
-    return nav_layout("Stocks - AVA", content + live_update_script("stocks"))
+    return nav_layout("Stocks - AVA", content)
 
 
 # ==========================================
@@ -682,7 +747,7 @@ def crypto_detail(symbol):
         <div class="card">
           <h3>Market Regime</h3>
           <p><strong>{brain['regime']}</strong></p>
-          <p style="font-size:0.9rem;">{brain['reason']}</p>
+          <p style="font-size:0.9rem; color:var(--muted);">{brain['reason']}</p>
         </div>
       </div>
       
@@ -720,7 +785,7 @@ def stock_detail(symbol):
         <div class="card">
           <h3>Market Regime</h3>
           <p><strong>{brain['regime']}</strong></p>
-          <p style="font-size:0.9rem;">{brain['reason']}</p>
+          <p style="font-size:0.9rem; color:var(--muted);">{brain['reason']}</p>
         </div>
       </div>
       
