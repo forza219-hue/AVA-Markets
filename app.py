@@ -302,22 +302,84 @@ CRYPTO_TOP_90 = [
     ("PEPE", "Pepe"), ("SHIB", "Shiba Inu"), ("TRX", "TRON"), ("ETC", "Ethereum Classic"), ("XLM", "Stellar"),
     ("HBAR", "Hedera"), ("ICP", "Internet Computer"), ("FIL", "Filecoin"), ("INJ", "Injective"), ("RNDR", "Render"),
     ("TAO", "Bittensor"), ("IMX", "Immutable"), ("SEI", "Sei"), ("TIA", "Celestia"), ("JUP", "Jupiter"),
-    ("PYTH", "Pyth Network"), ("BONK", "Bonk"), ("WIF", "dogwifhat"), ("FET", "Fetch.ai"), ("RUNE", "THORChain")
+    ("PYTH", "Pyth Network"), ("BONK", "Bonk"), ("WIF", "dogwifhat"), ("FET", "Fetch.ai"), ("RUNE", "THORChain"),
+    ("AAVE", "Aave"), ("ALGO", "Algorand"), ("FLOW", "Flow"), ("MKR", "Maker"), ("SAND", "The Sandbox"),
+    ("MANA", "Decentraland"), ("GRT", "The Graph"), ("EGLD", "MultiversX"), ("KAS", "Kaspa"), ("XMR", "Monero"),
+    ("XTZ", "Tezos"), ("EOS", "EOS"), ("AXS", "Axie Infinity"), ("CHZ", "Chiliz"), ("CRV", "Curve DAO"),
+    ("COMP", "Compound"), ("SNX", "Synthetix"), ("1INCH", "1inch"), ("ZEC", "Zcash"), ("DASH", "Dash"),
+    ("KAVA", "Kava"), ("ROSE", "Oasis"), ("LDO", "Lido DAO"), ("BLUR", "Blur"), ("DYDX", "dYdX"),
+    ("GMX", "GMX"), ("CFX", "Conflux"), ("MINA", "Mina"), ("CKB", "Nervos"), ("IOTA", "IOTA"),
+    ("QTUM", "Qtum"), ("ZIL", "Zilliqa"), ("BAT", "Basic Attention Token"), ("ENJ", "Enjin Coin"), ("HOT", "Holo"),
+    ("ANKR", "Ankr"), ("WOO", "WOO"), ("YFI", "yearn.finance"), ("SUSHI", "Sushi"), ("CELR", "Celer Network"),
+    ("ONT", "Ontology"), ("SKL", "SKALE"), ("RSR", "Reserve Rights"), ("LRC", "Loopring"), ("NEXO", "Nexo"),
+    ("GLM", "Golem"), ("FLUX", "Flux"), ("API3", "API3"), ("MASK", "Mask Network"), ("OCEAN", "Ocean Protocol"),
+    ("ARKM", "Arkham"), ("TRB", "Tellor"), ("BAND", "Band Protocol"), ("STORJ", "Storj"), ("CELO", "Celo")
 ]
 
 STOCK_UNIVERSE = [
     ("AAPL", "Apple"), ("MSFT", "Microsoft"), ("NVDA", "NVIDIA"), ("AMZN", "Amazon"),
-    ("GOOGL", "Alphabet"), ("META", "Meta"), ("TSLA", "Tesla"), ("BRK-B", "Berkshire"),
+    ("GOOGL", "Alphabet"), ("META", "Meta"), ("TSLA", "Tesla"), ("BRK-B", "Berkshire Hathaway"),
     ("JPM", "JPMorgan"), ("V", "Visa"), ("MA", "Mastercard"), ("UNH", "UnitedHealth"),
     ("XOM", "Exxon"), ("LLY", "Eli Lilly"), ("AVGO", "Broadcom"), ("ORCL", "Oracle"),
+    ("COST", "Costco"), ("WMT", "Walmart"), ("HD", "Home Depot"), ("PG", "Procter & Gamble"),
+    ("KO", "Coca-Cola"), ("PEP", "PepsiCo"), ("ABBV", "AbbVie"), ("BAC", "Bank of America"),
+    ("AMD", "AMD"), ("CRM", "Salesforce"), ("NFLX", "Netflix"), ("ADBE", "Adobe"),
+    ("INTC", "Intel"), ("QCOM", "Qualcomm"), ("CSCO", "Cisco"), ("TMO", "Thermo Fisher"),
+    ("MCD", "McDonald's"), ("NKE", "Nike"), ("DIS", "Disney"), ("CAT", "Caterpillar"),
+    ("GE", "GE Aerospace"), ("IBM", "IBM"), ("UBER", "Uber"), ("ABNB", "Airbnb"),
+    ("PYPL", "PayPal"), ("SHOP", "Shopify"), ("PLTR", "Palantir"), ("PFE", "Pfizer"),
+    ("MRK", "Merck"), ("GS", "Goldman Sachs"), ("MS", "Morgan Stanley"),
     ("GC=F", "Gold Futures"), ("SI=F", "Silver Futures"), ("CL=F", "Oil Futures")
 ]
 
 STOCK_DOMAINS = {
-    "AAPL": "apple.com", "MSFT": "microsoft.com", "NVDA": "nvidia.com", "AMZN": "amazon.com",
-    "GOOGL": "google.com", "META": "meta.com", "TSLA": "tesla.com", "BRK-B": "berkshirehathaway.com",
-    "JPM": "jpmorganchase.com", "V": "visa.com", "MA": "mastercard.com", "UNH": "uhc.com",
-    "XOM": "exxonmobil.com", "LLY": "lilly.com", "AVGO": "broadcom.com", "ORCL": "oracle.com"
+    "AAPL": "apple.com",
+    "MSFT": "microsoft.com",
+    "NVDA": "nvidia.com",
+    "AMZN": "amazon.com",
+    "GOOGL": "google.com",
+    "META": "meta.com",
+    "TSLA": "tesla.com",
+    "BRK-B": "berkshirehathaway.com",
+    "JPM": "jpmorganchase.com",
+    "V": "visa.com",
+    "MA": "mastercard.com",
+    "UNH": "uhc.com",
+    "XOM": "exxonmobil.com",
+    "LLY": "lilly.com",
+    "AVGO": "broadcom.com",
+    "ORCL": "oracle.com",
+    "COST": "costco.com",
+    "WMT": "walmart.com",
+    "HD": "homedepot.com",
+    "PG": "pg.com",
+    "KO": "coca-cola.com",
+    "PEP": "pepsico.com",
+    "ABBV": "abbvie.com",
+    "BAC": "bankofamerica.com",
+    "AMD": "amd.com",
+    "CRM": "salesforce.com",
+    "NFLX": "netflix.com",
+    "ADBE": "adobe.com",
+    "INTC": "intel.com",
+    "QCOM": "qualcomm.com",
+    "CSCO": "cisco.com",
+    "TMO": "thermofisher.com",
+    "MCD": "mcdonalds.com",
+    "NKE": "nike.com",
+    "DIS": "thewaltdisneycompany.com",
+    "CAT": "cat.com",
+    "GE": "geaerospace.com",
+    "IBM": "ibm.com",
+    "UBER": "uber.com",
+    "ABNB": "airbnb.com",
+    "PYPL": "paypal.com",
+    "SHOP": "shopify.com",
+    "PLTR": "palantir.com",
+    "PFE": "pfizer.com",
+    "MRK": "merck.com",
+    "GS": "goldmansachs.com",
+    "MS": "morganstanley.com"
 }
 
 BLOG_POSTS = {
@@ -401,590 +463,18 @@ SYMBOL_LEARN = {
 }
 
 
-def h(v):
-    return html.escape("" if v is None else str(v), quote=True)
-
-def fmt_price(v, sym=None):
-    try:
-        vf = float(v)
-        return f"${vf:,.2f}" if vf >= 1 else f"${vf:.4f}" if vf >= 0.01 else f"${vf:.8f}"
-    except Exception:
-        return "$0.00"
-
-def fmt_change(v):
-    try:
-        return f"{float(v):+.2f}%"
-    except Exception:
-        return "+0.00%"
-
-def pct_change(price, prev):
-    return 0.0 if prev in [0, None] else ((price - prev) / prev) * 100.0
-
-def compute_light_signal(c):
-    try:
-        c = float(c)
-    except Exception:
-        c = 0.0
-    return "BUY" if c >= 2.0 else "SELL" if c <= -2.0 else "HOLD"
-
-def normalize_symbol_id(sym):
-    return str(sym).replace("=", "_").replace("-", "_").replace("/", "_")
-
-def get_stock_logo(sym):
-    d = STOCK_DOMAINS.get(str(sym).upper())
-    return f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{d}&size=128" if d else ""
-
-def get_crypto_logo(sym):
-    return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{str(sym).lower()}.png"
-
-def get_asset_icon(sym):
-    return {"GC=F": "🥇", "SI=F": "🥈", "CL=F": "🛢️"}.get(str(sym).upper(), "📈")
-
-def paginate(items, page, per_page):
-    if not items:
-        return [], 0, 1, 1
-    total = len(items)
-    pages = max(1, math.ceil(total / per_page))
-    page = max(1, min(page, pages))
-    start = (page - 1) * per_page
-    return items[start:start + per_page], total, pages, page
-
-def render_pagination(base_url, current, pages):
-    if pages <= 1:
-        return ""
-    parts = ["<div class='pagination'>"]
-    for p in range(1, pages + 1):
-        parts.append(f"<a class='page-link' href='{h(base_url)}?page={p}'>{p}</a>")
-    parts.append("</div>")
-    return "".join(parts)
-
-
-class Database:
-    def __init__(self, path):
-        self.path = path
-        self.init()
-
-    def conn(self):
-        c = sqlite3.connect(self.path, check_same_thread=False)
-        c.row_factory = sqlite3.Row
-        c.execute("PRAGMA journal_mode=WAL;")
-        return c
-
-    def init(self):
-        c = self.conn()
-        c.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            tier TEXT NOT NULL DEFAULT 'free',
-            billing_cycle TEXT,
-            stripe_customer_id TEXT,
-            stripe_sub_id TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS sessions (
-            token TEXT PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            expires_at TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS market_cache (
-            cache_key TEXT PRIMARY KEY,
-            payload_json TEXT NOT NULL,
-            updated_at INTEGER NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS active_signals (
-            signal_id TEXT PRIMARY KEY,
-            symbol TEXT NOT NULL,
-            asset_type TEXT NOT NULL,
-            name TEXT NOT NULL,
-            signal TEXT NOT NULL,
-            confidence INTEGER NOT NULL,
-            regime TEXT,
-            entry_price REAL NOT NULL,
-            stop_loss REAL NOT NULL,
-            take_profit_1 REAL NOT NULL,
-            take_profit_2 REAL NOT NULL,
-            risk_reward REAL NOT NULL,
-            reason TEXT,
-            price REAL NOT NULL,
-            change_pct REAL NOT NULL,
-            updated_at INTEGER NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS signal_history (
-            history_id TEXT PRIMARY KEY,
-            signal_id TEXT NOT NULL,
-            symbol TEXT NOT NULL,
-            asset_type TEXT NOT NULL,
-            name TEXT NOT NULL,
-            signal TEXT NOT NULL,
-            confidence INTEGER NOT NULL,
-            entry_price REAL NOT NULL,
-            stop_loss REAL NOT NULL,
-            take_profit_1 REAL NOT NULL,
-            take_profit_2 REAL NOT NULL,
-            risk_reward REAL NOT NULL,
-            outcome TEXT NOT NULL DEFAULT 'OPEN',
-            outcome_note TEXT,
-            updated_at INTEGER NOT NULL,
-            created_at INTEGER NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS alert_subscribers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            active INTEGER NOT NULL DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS broadcast_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            channel TEXT NOT NULL,
-            message_hash TEXT NOT NULL,
-            created_at INTEGER NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS password_resets (
-            token TEXT PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            expires_at TIMESTAMP NOT NULL,
-            used INTEGER NOT NULL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS email_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT NOT NULL,
-            event_type TEXT NOT NULL,
-            meta_json TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS watchlists (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            symbol TEXT NOT NULL,
-            asset_type TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, symbol, asset_type)
-        );
-
-        CREATE TABLE IF NOT EXISTS user_alert_prefs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER UNIQUE NOT NULL,
-            telegram_enabled INTEGER NOT NULL DEFAULT 0,
-            discord_enabled INTEGER NOT NULL DEFAULT 0,
-            email_enabled INTEGER NOT NULL DEFAULT 1,
-            min_confidence INTEGER NOT NULL DEFAULT 70,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS portfolio_positions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            symbol TEXT NOT NULL,
-            asset_type TEXT NOT NULL,
-            quantity REAL NOT NULL,
-            avg_cost REAL NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """)
-        c.commit()
-        c.close()
-
-    def create_user(self, email, password):
-        c = self.conn()
-        pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-        try:
-            c.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (email.lower().strip(), pw_hash))
-            c.commit()
-            row = c.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
-            return dict(row) if row else None
-        except Exception:
-            return None
-        finally:
-            c.close()
-
-    def verify_user(self, email, password):
-        c = self.conn()
-        u = c.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
-        c.close()
-        if u and bcrypt.checkpw(password.encode(), u["password_hash"].encode()):
-            return dict(u)
-        return None
-
-    def get_user_by_email(self, email):
-        c = self.conn()
-        row = c.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
-        c.close()
-        return dict(row) if row else None
-
-    def get_user_by_id(self, user_id):
-        c = self.conn()
-        row = c.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        c.close()
-        return dict(row) if row else None
-
-    def get_all_users(self, limit=500):
-        c = self.conn()
-        rows = c.execute("SELECT * FROM users ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
-        c.close()
-        return [dict(r) for r in rows]
-
-    def create_session(self, user_id):
-        token = secrets.token_hex(32)
-        exp = datetime.utcnow() + timedelta(days=30)
-        c = self.conn()
-        c.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", (token, user_id, exp))
-        c.commit()
-        c.close()
-        return token
-
-    def delete_session(self, token):
-        if not token:
-            return
-        c = self.conn()
-        c.execute("DELETE FROM sessions WHERE token = ?", (token,))
-        c.commit()
-        c.close()
-
-    def get_user_by_session(self, token):
-        if not token:
-            return None
-        c = self.conn()
-        row = c.execute("""
-            SELECT u.* FROM users u
-            JOIN sessions s ON s.user_id = u.id
-            WHERE s.token = ? AND s.expires_at > ?
-        """, (token, datetime.utcnow())).fetchone()
-        c.close()
-        return dict(row) if row else None
-
-    def update_user_password(self, user_id, new_password):
-        pw_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
-        c = self.conn()
-        c.execute("UPDATE users SET password_hash = ? WHERE id = ?", (pw_hash, user_id))
-        c.commit()
-        c.close()
-
-    def create_password_reset(self, user_id):
-        token = secrets.token_urlsafe(48)
-        exp = datetime.utcnow() + timedelta(minutes=Config.PASSWORD_RESET_TTL_MINUTES)
-        c = self.conn()
-        c.execute("INSERT INTO password_resets (token, user_id, expires_at, used) VALUES (?, ?, ?, 0)", (token, user_id, exp))
-        c.commit()
-        c.close()
-        return token
-
-    def get_valid_password_reset(self, token):
-        c = self.conn()
-        row = c.execute("""
-            SELECT * FROM password_resets
-            WHERE token = ? AND used = 0 AND expires_at > ?
-        """, (token, datetime.utcnow())).fetchone()
-        c.close()
-        return dict(row) if row else None
-
-    def mark_password_reset_used(self, token):
-        c = self.conn()
-        c.execute("UPDATE password_resets SET used = 1 WHERE token = ?", (token,))
-        c.commit()
-        c.close()
-
-    def upgrade_user(self, user_id, tier, customer_id=None, sub_id=None, billing_cycle=None):
-        c = self.conn()
-        c.execute("""
-            UPDATE users
-            SET tier = ?, stripe_customer_id = COALESCE(?, stripe_customer_id),
-                stripe_sub_id = COALESCE(?, stripe_sub_id), billing_cycle = COALESCE(?, billing_cycle)
-            WHERE id = ?
-        """, (tier, customer_id, sub_id, billing_cycle, user_id))
-        c.commit()
-        c.close()
-
-    def cache_get(self, key, ttl):
-        c = self.conn()
-        r = c.execute("SELECT payload_json, updated_at FROM market_cache WHERE cache_key = ?", (key,)).fetchone()
-        c.close()
-        if r and (int(time.time()) - r["updated_at"]) <= ttl:
-            return json.loads(r["payload_json"])
-        return None
-
-    def cache_get_stale(self, key):
-        c = self.conn()
-        r = c.execute("SELECT payload_json FROM market_cache WHERE cache_key = ?", (key,)).fetchone()
-        c.close()
-        return json.loads(r["payload_json"]) if r else None
-
-    def cache_set(self, key, payload):
-        c = self.conn()
-        c.execute("REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
-                  (key, json.dumps(payload), int(time.time())))
-        c.commit()
-        c.close()
-
-    def replace_active_signals(self, signals):
-        c = self.conn()
-        c.execute("DELETE FROM active_signals")
-        now = int(time.time())
-        for s in signals:
-            c.execute("""
-                INSERT INTO active_signals (
-                    signal_id, symbol, asset_type, name, signal, confidence, regime,
-                    entry_price, stop_loss, take_profit_1, take_profit_2,
-                    risk_reward, reason, price, change_pct, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                s["signal_id"], s["symbol"], s["asset_type"], s["name"], s["signal"],
-                s["confidence"], s["regime"], s["entry_price"], s["stop_loss"],
-                s["take_profit_1"], s["take_profit_2"], s["risk_reward"], s["reason"],
-                s["price"], s["change_pct"], now
-            ))
-        c.commit()
-        c.close()
-
-    def get_active_signals(self, asset_type=None, limit=50):
-        c = self.conn()
-        if asset_type:
-            rows = c.execute("""
-                SELECT * FROM active_signals
-                WHERE asset_type = ?
-                ORDER BY confidence DESC, risk_reward DESC, updated_at DESC
-                LIMIT ?
-            """, (asset_type, limit)).fetchall()
-        else:
-            rows = c.execute("""
-                SELECT * FROM active_signals
-                ORDER BY confidence DESC, risk_reward DESC, updated_at DESC
-                LIMIT ?
-            """, (limit,)).fetchall()
-        c.close()
-        return [dict(r) for r in rows]
-
-    def sync_signal_history(self, signals):
-        c = self.conn()
-        now = int(time.time())
-        active_ids = set()
-
-        for s in signals:
-            active_ids.add(s["signal_id"])
-            row = c.execute("SELECT * FROM signal_history WHERE signal_id = ? AND outcome = 'OPEN'", (s["signal_id"],)).fetchone()
-            if not row:
-                c.execute("""
-                    INSERT INTO signal_history (
-                        history_id, signal_id, symbol, asset_type, name, signal, confidence,
-                        entry_price, stop_loss, take_profit_1, take_profit_2, risk_reward,
-                        outcome, outcome_note, updated_at, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', '', ?, ?)
-                """, (
-                    secrets.token_hex(16), s["signal_id"], s["symbol"], s["asset_type"], s["name"],
-                    s["signal"], s["confidence"], s["entry_price"], s["stop_loss"],
-                    s["take_profit_1"], s["take_profit_2"], s["risk_reward"], now, now
-                ))
-            else:
-                c.execute("UPDATE signal_history SET updated_at = ? WHERE history_id = ?", (now, row["history_id"]))
-
-        stale_open = c.execute("SELECT * FROM signal_history WHERE outcome = 'OPEN'").fetchall()
-        for row in stale_open:
-            if row["signal_id"] not in active_ids:
-                c.execute("""
-                    UPDATE signal_history
-                    SET outcome = 'EXPIRED', outcome_note = 'Signal rotated out of active set.', updated_at = ?
-                    WHERE history_id = ?
-                """, (now, row["history_id"]))
-
-        c.commit()
-        c.close()
-
-    def get_signal_history(self, limit=100):
-        c = self.conn()
-        rows = c.execute("SELECT * FROM signal_history ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
-        c.close()
-        return [dict(r) for r in rows]
-
-    def get_open_signal_history(self, limit=200):
-        c = self.conn()
-        rows = c.execute("SELECT * FROM signal_history WHERE outcome = 'OPEN' ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
-        c.close()
-        return [dict(r) for r in rows]
-
-    def update_signal_outcome(self, history_id, outcome, note):
-        c = self.conn()
-        c.execute("""
-            UPDATE signal_history
-            SET outcome = ?, outcome_note = ?, updated_at = ?
-            WHERE history_id = ?
-        """, (outcome, note, int(time.time()), history_id))
-        c.commit()
-        c.close()
-
-    def get_signal_stats(self):
-        c = self.conn()
-        total = c.execute("SELECT COUNT(*) AS n FROM signal_history").fetchone()["n"]
-        open_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='OPEN'").fetchone()["n"]
-        expired_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='EXPIRED'").fetchone()["n"]
-        tp1_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='TP1_HIT'").fetchone()["n"]
-        tp2_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='TP2_HIT'").fetchone()["n"]
-        stopped_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='STOPPED'").fetchone()["n"]
-        closed_wins = tp1_n + tp2_n
-        closed_total = closed_wins + stopped_n
-        win_rate = round((closed_wins / closed_total) * 100, 2) if closed_total > 0 else 0.0
-        c.close()
-        return {
-            "total": total, "open": open_n, "expired": expired_n,
-            "tp1_hit": tp1_n, "tp2_hit": tp2_n, "stopped": stopped_n,
-            "win_rate": win_rate
-        }
-
-    def subscribe_email(self, email):
-        c = self.conn()
-        c.execute("INSERT OR IGNORE INTO alert_subscribers (email, active) VALUES (?, 1)", (email.lower().strip(),))
-        c.commit()
-        c.close()
-
-    def unsubscribe_email(self, email):
-        c = self.conn()
-        c.execute("UPDATE alert_subscribers SET active = 0 WHERE email = ?", (email.lower().strip(),))
-        c.commit()
-        c.close()
-
-    def get_active_subscribers(self, limit=1000):
-        c = self.conn()
-        rows = c.execute("SELECT * FROM alert_subscribers WHERE active = 1 ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
-        c.close()
-        return [dict(r) for r in rows]
-
-    def log_email_event(self, email, event_type, meta=None):
-        c = self.conn()
-        c.execute("INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
-                  (email.lower().strip(), event_type, json.dumps(meta or {})))
-        c.commit()
-        c.close()
-
-    def was_broadcast_sent_recently(self, channel, message_hash, cooldown_seconds):
-        c = self.conn()
-        cutoff = int(time.time()) - cooldown_seconds
-        row = c.execute("""
-            SELECT id FROM broadcast_log
-            WHERE channel = ? AND message_hash = ? AND created_at >= ?
-            LIMIT 1
-        """, (channel, message_hash, cutoff)).fetchone()
-        c.close()
-        return bool(row)
-
-    def log_broadcast(self, channel, message_hash):
-        c = self.conn()
-        c.execute("INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
-                  (channel, message_hash, int(time.time())))
-        c.commit()
-        c.close()
-
-    def get_user_count(self):
-        c = self.conn()
-        n = c.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
-        c.close()
-        return n
-
-    def get_paid_user_count(self):
-        c = self.conn()
-        n = c.execute("SELECT COUNT(*) AS n FROM users WHERE tier IN ('pro','elite')").fetchone()["n"]
-        c.close()
-        return n
-
-    def get_subscriber_count(self):
-        c = self.conn()
-        n = c.execute("SELECT COUNT(*) AS n FROM alert_subscribers WHERE active = 1").fetchone()["n"]
-        c.close()
-        return n
-
-    def add_watchlist(self, user_id, symbol, asset_type):
-        c = self.conn()
-        c.execute("INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
-                  (user_id, symbol.upper().strip(), asset_type.strip()))
-        c.commit()
-        c.close()
-
-    def remove_watchlist(self, user_id, symbol, asset_type):
-        c = self.conn()
-        c.execute("DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
-                  (user_id, symbol.upper().strip(), asset_type.strip()))
-        c.commit()
-        c.close()
-
-    def get_watchlist(self, user_id):
-        c = self.conn()
-        rows = c.execute("SELECT * FROM watchlists WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
-        c.close()
-        return [dict(r) for r in rows]
-
-    def ensure_alert_prefs(self, user_id):
-        c = self.conn()
-        c.execute("INSERT OR IGNORE INTO user_alert_prefs (user_id) VALUES (?)", (user_id,))
-        c.commit()
-        c.close()
-
-    def get_alert_prefs(self, user_id):
-        self.ensure_alert_prefs(user_id)
-        c = self.conn()
-        row = c.execute("SELECT * FROM user_alert_prefs WHERE user_id = ?", (user_id,)).fetchone()
-        c.close()
-        return dict(row) if row else None
-
-    def update_alert_prefs(self, user_id, email_enabled, telegram_enabled, discord_enabled, min_confidence):
-        self.ensure_alert_prefs(user_id)
-        c = self.conn()
-        c.execute("""
-            UPDATE user_alert_prefs
-            SET email_enabled = ?, telegram_enabled = ?, discord_enabled = ?, min_confidence = ?
-            WHERE user_id = ?
-        """, (email_enabled, telegram_enabled, discord_enabled, min_confidence, user_id))
-        c.commit()
-        c.close()
-
-    def add_portfolio_position(self, user_id, symbol, asset_type, quantity, avg_cost):
-        c = self.conn()
-        c.execute("""
-            INSERT INTO portfolio_positions (user_id, symbol, asset_type, quantity, avg_cost)
-            VALUES (?, ?, ?, ?, ?)
-        """, (user_id, symbol.upper().strip(), asset_type.strip(), float(quantity), float(avg_cost)))
-        c.commit()
-        c.close()
-
-    def delete_portfolio_position(self, position_id, user_id):
-        c = self.conn()
-        c.execute("DELETE FROM portfolio_positions WHERE id = ? AND user_id = ?", (position_id, user_id))
-        c.commit()
-        c.close()
-
-    def get_portfolio_positions(self, user_id):
-        c = self.conn()
-        rows = c.execute("""
-            SELECT * FROM portfolio_positions
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-        """, (user_id,)).fetchall()
-        c.close()
-        return [dict(r) for r in rows]
-
-
 db = Database(Config.DATABASE)
 MEM_CACHE = {}
 
 
-def get_web_user():
-    return db.get_user_by_session(request.cookies.get("session_token"))
-
 @app.before_request
 def load_req():
-    g.user = get_web_user()
+    g.user = db.get_user_by_session(request.cookies.get("session_token"))
     if g.user and str(g.user.get("email", "")).lower() == Config.ADMIN_EMAIL:
         if g.user.get("tier") != "elite":
             db.upgrade_user(g.user["id"], "elite", billing_cycle="admin")
             g.user = db.get_user_by_id(g.user["id"])
+
 
 def is_admin():
     return bool(g.user and str(g.user.get("email", "")).lower() == Config.ADMIN_EMAIL)
@@ -1118,8 +608,8 @@ def perform_stock_fetch():
                 res = r.json().get("chart", {}).get("result", [])
                 if res:
                     meta = res[0].get("meta", {})
-                    price = float(meta.get("regularMarketPrice", 0))
-                    prev = float(meta.get("previousClose", price))
+                    price = float(meta.get("regularMarketPrice") or meta.get("chartPreviousClose") or 0)
+                    prev = float(meta.get("previousClose") or meta.get("chartPreviousClose") or price)
                     if price > 0:
                         change = pct_change(price, prev)
                         results.append({
@@ -1425,26 +915,26 @@ def build_trade_setup(asset, candles, asset_type):
 def generate_active_signals():
     signals = []
 
-    for asset in fetch_crypto_quotes_safe()[:24]:
+    for asset in fetch_crypto_quotes_safe()[:40]:
         candles = fetch_crypto_candles(asset["symbol"], 120)
         setup = build_trade_setup(asset, candles, "crypto")
         if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
             signals.append(setup)
 
-    for asset in fetch_stock_quotes_safe()[:18]:
+    for asset in fetch_stock_quotes_safe()[:50]:
         candles = fetch_stock_candles(asset["symbol"])
         setup = build_trade_setup(asset, candles, "stock")
         if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
             signals.append(setup)
 
     signals.sort(key=lambda x: (x["confidence"], x["risk_reward"]), reverse=True)
-    signals = signals[:25]
+    signals = signals[:50]
     db.replace_active_signals(signals)
     db.sync_signal_history(signals)
     return signals
 
 def evaluate_signal_history_outcomes():
-    open_rows = db.get_open_signal_history(limit=300)
+    open_rows = db.get_open_signal_history(limit=500)
 
     for row in open_rows:
         symbol = row["symbol"]
@@ -1860,6 +1350,51 @@ def build_portfolio_analytics(user_id):
         "best": best,
         "worst": worst
     }
+
+def get_confidence_accuracy_breakdown():
+    rows = db.get_signal_history(limit=2000)
+    buckets = {
+        "50-59": {"wins": 0, "losses": 0},
+        "60-69": {"wins": 0, "losses": 0},
+        "70-79": {"wins": 0, "losses": 0},
+        "80-89": {"wins": 0, "losses": 0},
+        "90-99": {"wins": 0, "losses": 0},
+    }
+
+    for r in rows:
+        conf = int(r.get("confidence", 0))
+        outcome = str(r.get("outcome", "OPEN"))
+
+        if outcome not in ("TP1_HIT", "TP2_HIT", "STOPPED"):
+            continue
+
+        if conf < 60:
+            bucket = "50-59"
+        elif conf < 70:
+            bucket = "60-69"
+        elif conf < 80:
+            bucket = "70-79"
+        elif conf < 90:
+            bucket = "80-89"
+        else:
+            bucket = "90-99"
+
+        if outcome in ("TP1_HIT", "TP2_HIT"):
+            buckets[bucket]["wins"] += 1
+        else:
+            buckets[bucket]["losses"] += 1
+
+    result = []
+    for bucket, vals in buckets.items():
+        total = vals["wins"] + vals["losses"]
+        acc = round((vals["wins"] / total) * 100, 2) if total > 0 else 0.0
+        result.append({
+            "bucket": bucket,
+            "wins": vals["wins"],
+            "losses": vals["losses"],
+            "accuracy": acc
+        })
+    return result
 
 
 @app.route("/api/live/crypto-list")
@@ -2484,6 +2019,18 @@ def signals():
 @app.route("/history")
 def history():
     stats = db.get_signal_stats()
+    confidence_rows = get_confidence_accuracy_breakdown()
+
+    confidence_html = ""
+    for row in confidence_rows:
+        confidence_html += f"""
+        <tr>
+          <td>{h(row['bucket'])}</td>
+          <td>{row['wins']}</td>
+          <td>{row['losses']}</td>
+          <td>{row['accuracy']}%</td>
+        </tr>
+        """
 
     if not g.user or g.user.get("tier", "free") == "free":
         content = f"""
@@ -2505,7 +2052,7 @@ def history():
         return nav_layout("History - AVA", content, "AVA signal history and tracked win rate.")
 
     rows = ""
-    for r in db.get_signal_history(limit=120):
+    for r in db.get_signal_history(limit=240):
         rows += f"""
         <tr>
           <td><strong>{h(r['symbol'])}</strong><div class="small">{h(r['name'])}</div></td>
@@ -2529,11 +2076,22 @@ def history():
         <div class="kpi"><div class="num">{stats['tp1_hit'] + stats['tp2_hit']}</div><div class="label">Tracked Wins</div></div>
         <div class="kpi"><div class="num">{stats['win_rate']}%</div><div class="label">Win Rate</div></div>
       </div>
+
       <div class="table-shell">
         <table class="market-table">
           <tr><th>Asset</th><th>Type</th><th>Signal</th><th>Confidence</th><th>Entry</th><th>TP1</th><th>TP2</th><th>Outcome</th></tr>
           {rows or "<tr><td colspan='8'>No signal history yet.</td></tr>"}
         </table>
+      </div>
+
+      <div class="card" style="margin-top:24px;">
+        <h3>Accuracy by Confidence Bucket</h3>
+        <div class="table-shell">
+          <table class="market-table">
+            <tr><th>Confidence</th><th>Wins</th><th>Losses</th><th>Accuracy</th></tr>
+            {confidence_html or "<tr><td colspan='4'>No confidence accuracy data yet.</td></tr>"}
+          </table>
+        </div>
       </div>
     </section>
     """
