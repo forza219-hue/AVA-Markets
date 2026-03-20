@@ -45,11 +45,14 @@ class Config:
     DOMAIN = os.environ.get("DOMAIN", "").strip().rstrip("/")
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+    FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "").strip()
     CRYPTO_CACHE_TTL = 300
     STOCK_CACHE_TTL = 600
     DETAIL_CACHE_TTL = 300
-    PAGE_SIZE = 100
+    PAGE_SIZE_CRYPTO = 100
+    PAGE_SIZE_STOCKS = 100
     COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+    RATE_LIMIT_STORAGE_URI = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory://")
 
 if stripe and Config.STRIPE_SECRET_KEY: 
     stripe.api_key = Config.STRIPE_SECRET_KEY
