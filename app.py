@@ -405,6 +405,9 @@ def _perform_stock_fetch():
     if results: 
         set_cached_payload("stock_list", results)
 
+def fetch_crypto_quotes_safe(): return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
+def fetch_stock_quotes_safe(): return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
+
 
 # ==========================================
 # CANDLESTICK FETCHERS (FOR DETAIL PAGES)
