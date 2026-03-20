@@ -211,7 +211,7 @@ class Database:
         c = self.conn()
         r = c.execute("SELECT payload_json, updated_at FROM market_cache WHERE cache_key = ?", (key,)).fetchone()
         c.close()
-        if r and (int(time.time()) - r["updated_at"]) <= ttl): return json.loads(r["payload_json"])
+        if r and (int(time.time()) - r["updated_at"]) <= ttl: return json.loads(r["payload_json"])
         return None
     def cache_get_stale(self, key):
         c = self.conn(); r = c.execute("SELECT payload_json FROM market_cache WHERE cache_key = ?", (key,)).fetchone(); c.close()
