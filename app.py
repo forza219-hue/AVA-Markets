@@ -10,7 +10,7 @@ import requests
 
 from datetime import datetime
 from functools import wraps
-from urllib.parse import urlparse, quote_plus
+from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 from flask import Flask, request, redirect, make_response, render_template_string, jsonify
@@ -37,8 +37,8 @@ class Config:
     DOMAIN = os.environ.get("DOMAIN", "").strip().rstrip("/")
     CRYPTO_CACHE_TTL = 300
     STOCK_CACHE_TTL = 600
-    PAGE_SIZE_CRYPTO = 100  # Show all cryptos on one page
-    PAGE_SIZE_STOCKS = 100  # Show all stocks on one page
+    PAGE_SIZE_CRYPTO = 100
+    PAGE_SIZE_STOCKS = 100
     RATE_LIMIT_STORAGE_URI = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory://")
 
 app = Flask(__name__)
@@ -118,13 +118,13 @@ STOCK_DOMAINS = {
 
 def h(v): return html.escape("" if v is None else str(v), quote=True)
 
-# Google Favicon perfectly pulls real logos for ALL stock domains
 def get_stock_logo(sym): 
     domain = STOCK_DOMAINS.get(sym.upper())
     return f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{domain}&size=128" if domain else ""
 
 def get_crypto_logo(sym): return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{sym.lower()}.png"
 def get_asset_icon(sym): return {"GC=F": "🥇", "SI=F": "🥈", "PL=F": "🔘", "CL=F": "🛢️", "SIG": "💎"}.get(sym.upper(), "📈")
+def pct_change(price, prev): return 0.0 if prev in [0, None] else ((price - prev) / prev) * 100.0
 def fmt_price(v, s=None): return f"€{v:,.2f}" if s == "ASML" else f"${v:,.2f}" if v >= 1 else f"${v:.4f}" if v >= 0.01 else f"${v:.8f}"
 def fmt_change(v): return f"{v:+.2f}%"
 
@@ -172,31 +172,29 @@ def set_cached_payload(key, payload):
     MEM_CACHE[key] = {"data": payload, "updated_at": now}
     db.cache_set(key, payload)
 
-def compute_light_signal(change): return "BUY" if change >= 2.0 else "SELL" if change <= -2.0 else "HOLD"
-
 # ==========================================
 # NON-BLOCKING API FETCHERS (BACKGROUND ONLY)
 # ==========================================
 
 def _perform_crypto_fetch():
+    results = []
     try:
-        # COINCAP API: 1 fast call. Extremely reliable, no geo-blocks, no rate limits.
-        r = requests.get("https://api.coincap.io/v2/assets?limit=2000", timeout=15)
+        # PRIMARY API: KUCOIN (Extremely reliable, no DNS issues on Render)
+        r = requests.get("https://api.kucoin.com/api/v1/market/allTickers", timeout=15)
         if r.status_code == 200:
-            market_data = r.json().get("data", [])
+            market_data = r.json().get("data", {}).get("ticker", [])
             market_map = {}
             for item in market_data:
-                sym = item.get("symbol", "").upper()
-                if sym not in market_map: # Only keep the highest market cap version of a symbol
-                    market_map[sym] = item
+                sym = item.get("symbol", "")
+                if sym.endswith("-USDT"):
+                    market_map[sym.split("-")[0]] = item
 
-            results = []
             for symbol, name in CRYPTO_TOP_90:
                 item = market_map.get(symbol)
                 if not item: continue
                 
-                price = float(item.get("priceUsd", 0) or 0)
-                change = float(item.get("changePercent24Hr", 0) or 0)
+                price = float(item.get("last", 0))
+                change = float(item.get("changeRate", 0)) * 100.0
                 
                 if price > 0:
                     results.append({
@@ -204,26 +202,52 @@ def _perform_crypto_fetch():
                         "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
                         "logo": get_crypto_logo(symbol), "icon": "₿"
                     })
-
-            if results: 
-                set_cached_payload("crypto_list", results)
     except Exception as e:
-        logger.error(f"Background Crypto fetch failed: {e}")
+        logger.error(f"KuCoin fetch failed: {e}")
+
+    # FALLBACK API: MEXC (Massive exchange, never geo-blocks. Kicks in instantly if KuCoin fails)
+    if not results:
+        try:
+            logger.info("Using MEXC fallback for Crypto...")
+            r = requests.get("https://api.mexc.com/api/v3/ticker/24hr", timeout=15)
+            if r.status_code == 200:
+                market_data = r.json()
+                market_map = {item.get("symbol", "").replace("USDT", ""): item for item in market_data if item.get("symbol", "").endswith("USDT")}
+                
+                for symbol, name in CRYPTO_TOP_90:
+                    item = market_map.get(symbol)
+                    if not item: continue
+                    
+                    price = float(item.get("lastPrice", 0))
+                    change = float(item.get("priceChangePercent", 0)) * 100.0 # MEXC returns raw decimal
+                    
+                    if price > 0:
+                        results.append({
+                            "symbol": symbol, "name": name, "price": price, "change": change,
+                            "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
+                            "logo": get_crypto_logo(symbol), "icon": "₿"
+                        })
+        except Exception as e:
+            logger.error(f"MEXC fallback failed: {e}")
+
+    if results: 
+        set_cached_payload("crypto_list", results)
+
 
 def _perform_stock_fetch():
-    # Direct Yahoo Finance QUOTE API (Returns official % change and includes weekend commodities)
+    # Direct Yahoo Finance QUOTE API 
+    # Fetches all 50 assets in 1 single call. Bypasses rate limits and weekend missing data.
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     
     try:
-        # Fetch all 50 stocks/commodities in ONE single HTTP request
         symbols_str = ",".join([s for s, _ in STOCK_UNIVERSE])
         url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbols_str}"
         
-        r = requests.get(url, headers=headers, timeout=10)
+        r = requests.get(url, headers=headers, timeout=15)
         if r.status_code == 200:
             data = r.json().get("quoteResponse", {}).get("result", [])
             
-            # Create a lookup map
+            # Map the results
             res_map = {}
             for item in data:
                 sym = item.get("symbol")
@@ -380,10 +404,10 @@ def crypto():
     
     rows = ""
     for a in page_items:
-        fallback = f"<span class='asset-icon'>{h(a.get('icon','₿'))}</span>"
-        # Pure simple error handling to render emoji if icon 404s
-        media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';"><span class="asset-icon" style="display:none;">{h(a.get("icon","₿"))}</span>'
-        
+        # Fallback to standard emoji if image is broken
+        fallback = f"<span class='asset-icon' style='display:none;'>{h(a.get('icon','₿'))}</span>"
+        media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';">{fallback}'
+
         rows += f"""
         <tr>
           <td class="asset-name">
@@ -431,13 +455,14 @@ def stocks():
     rows = ""
     for a in page_items:
         safe_id = h(a["symbol"].replace("=", "_"))
-        fallback = f"<span class='asset-icon'>{h(a.get('icon','📈'))}</span>"
         
+        # Fallback to standard emoji (🥇 for gold, 📈 for stocks) if image is broken
+        fallback = f"<span class='asset-icon' style='display:none;'>{h(a.get('icon','📈'))}</span>"
         if a.get("logo"):
-            media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';"><span class="asset-icon" style="display:none;">{h(a.get("icon","📈"))}</span>'
+            media = f'<img class="asset-logo" src="{h(a["logo"])}" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline-flex\';">{fallback}'
         else:
-            media = fallback
-            
+            media = f"<span class='asset-icon'>{h(a.get('icon','📈'))}</span>"
+        
         rows += f"""
         <tr>
           <td class="asset-name">
@@ -485,20 +510,22 @@ def start_background_refresh():
         _perform_stock_fetch()
         logger.info("Background thread: Initial data cached successfully.")
         
-        # Step 2: Loop forever, fetching gently
+        # Step 2: Loop forever, safely fetching
         while True:
             time.sleep(60)  # Re-fetch data safely every 60 seconds
             _perform_crypto_fetch()
             _perform_stock_fetch()
             
-    # Daemon=True means this thread will die gracefully when the server restarts
+    # Daemon=True ensures thread closes safely when Render restarts server
     t = threading.Thread(target=background_loop, daemon=True)
     t.start()
     _bg_started = True
 
-# Start the background fetcher immediately on boot
+# Start the background fetcher immediately
 if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not Config.DEBUG:
     start_background_refresh()
 
 if __name__ == "__main__":
     app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
+
+def compute_light_signal(change): return "BUY" if change >= 2.0 else "SELL" if change <= -2.0 else "HOLD"
