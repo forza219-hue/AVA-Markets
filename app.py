@@ -56,9 +56,7 @@ class Config:
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "").strip()
     STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
     STRIPE_PRICE_PRO_MONTHLY = os.environ.get("STRIPE_PRICE_PRO_MONTHLY", "").strip()
-    STRIPE_PRICE_PRO_YEARLY = os.environ.get("STRIPE_PRICE_PRO_YEARLY", "").strip()
     STRIPE_PRICE_ELITE_MONTHLY = os.environ.get("STRIPE_PRICE_ELITE_MONTHLY", "").strip()
-    STRIPE_PRICE_ELITE_YEARLY = os.environ.get("STRIPE_PRICE_ELITE_YEARLY", "").strip()
 
     FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "").strip()
 
@@ -463,18 +461,590 @@ SYMBOL_LEARN = {
 }
 
 
+def h(v):
+    return html.escape("" if v is None else str(v), quote=True)
+
+def fmt_price(v, sym=None):
+    try:
+        vf = float(v)
+        return f"${vf:,.2f}" if vf >= 1 else f"${vf:.4f}" if vf >= 0.01 else f"${vf:.8f}"
+    except Exception:
+        return "$0.00"
+
+def fmt_change(v):
+    try:
+        return f"{float(v):+.2f}%"
+    except Exception:
+        return "+0.00%"
+
+def pct_change(price, prev):
+    return 0.0 if prev in [0, None] else ((price - prev) / prev) * 100.0
+
+def compute_light_signal(c):
+    try:
+        c = float(c)
+    except Exception:
+        c = 0.0
+    return "BUY" if c >= 0.8 else "SELL" if c <= -0.8 else "HOLD"
+
+def normalize_symbol_id(sym):
+    return str(sym).replace("=", "_").replace("-", "_").replace("/", "_")
+
+def get_stock_logo(sym):
+    d = STOCK_DOMAINS.get(str(sym).upper())
+    return f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{d}&size=128" if d else ""
+
+def get_crypto_logo(sym):
+    return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{str(sym).lower()}.png"
+
+def get_asset_icon(sym):
+    return {"GC=F": "🥇", "SI=F": "🥈", "CL=F": "🛢️"}.get(str(sym).upper(), "📈")
+
+def paginate(items, page, per_page):
+    if not items:
+        return [], 0, 1, 1
+    total = len(items)
+    pages = max(1, math.ceil(total / per_page))
+    page = max(1, min(page, pages))
+    start = (page - 1) * per_page
+    return items[start:start + per_page], total, pages, page
+
+def render_pagination(base_url, current, pages):
+    if pages <= 1:
+        return ""
+    parts = ["<div class='pagination'>"]
+    for p in range(1, pages + 1):
+        parts.append(f"<a class='page-link' href='{h(base_url)}?page={p}'>{p}</a>")
+    parts.append("</div>")
+    return "".join(parts)
+
+
+class Database:
+    def __init__(self, path):
+        self.path = path
+        self.init()
+
+    def conn(self):
+        c = sqlite3.connect(self.path, check_same_thread=False)
+        c.row_factory = sqlite3.Row
+        c.execute("PRAGMA journal_mode=WAL;")
+        return c
+
+    def init(self):
+        c = self.conn()
+        c.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            tier TEXT NOT NULL DEFAULT 'free',
+            billing_cycle TEXT,
+            stripe_customer_id TEXT,
+            stripe_sub_id TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS market_cache (
+            cache_key TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS active_signals (
+            signal_id TEXT PRIMARY KEY,
+            symbol TEXT NOT NULL,
+            asset_type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            signal TEXT NOT NULL,
+            confidence INTEGER NOT NULL,
+            regime TEXT,
+            entry_price REAL NOT NULL,
+            stop_loss REAL NOT NULL,
+            take_profit_1 REAL NOT NULL,
+            take_profit_2 REAL NOT NULL,
+            risk_reward REAL NOT NULL,
+            reason TEXT,
+            price REAL NOT NULL,
+            change_pct REAL NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS signal_history (
+            history_id TEXT PRIMARY KEY,
+            signal_id TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            asset_type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            signal TEXT NOT NULL,
+            confidence INTEGER NOT NULL,
+            entry_price REAL NOT NULL,
+            stop_loss REAL NOT NULL,
+            take_profit_1 REAL NOT NULL,
+            take_profit_2 REAL NOT NULL,
+            risk_reward REAL NOT NULL,
+            outcome TEXT NOT NULL DEFAULT 'OPEN',
+            outcome_note TEXT,
+            updated_at INTEGER NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS alert_subscribers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS broadcast_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel TEXT NOT NULL,
+            message_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS password_resets (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS email_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            meta_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS watchlists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            symbol TEXT NOT NULL,
+            asset_type TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, symbol, asset_type)
+        );
+
+        CREATE TABLE IF NOT EXISTS user_alert_prefs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE NOT NULL,
+            telegram_enabled INTEGER NOT NULL DEFAULT 0,
+            discord_enabled INTEGER NOT NULL DEFAULT 0,
+            email_enabled INTEGER NOT NULL DEFAULT 1,
+            min_confidence INTEGER NOT NULL DEFAULT 70,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS portfolio_positions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            symbol TEXT NOT NULL,
+            asset_type TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            avg_cost REAL NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        c.commit()
+        c.close()
+
+    def create_user(self, email, password):
+        c = self.conn()
+        pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        try:
+            c.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (email.lower().strip(), pw_hash))
+            c.commit()
+            row = c.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
+            return dict(row) if row else None
+        except Exception:
+            return None
+        finally:
+            c.close()
+
+    def verify_user(self, email, password):
+        c = self.conn()
+        u = c.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
+        c.close()
+        if u and bcrypt.checkpw(password.encode(), u["password_hash"].encode()):
+            return dict(u)
+        return None
+
+    def get_user_by_email(self, email):
+        c = self.conn()
+        row = c.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
+        c.close()
+        return dict(row) if row else None
+
+    def get_user_by_id(self, user_id):
+        c = self.conn()
+        row = c.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        c.close()
+        return dict(row) if row else None
+
+    def get_all_users(self, limit=500):
+        c = self.conn()
+        rows = c.execute("SELECT * FROM users ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+
+    def create_session(self, user_id):
+        token = secrets.token_hex(32)
+        exp = datetime.utcnow() + timedelta(days=30)
+        c = self.conn()
+        c.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", (token, user_id, exp))
+        c.commit()
+        c.close()
+        return token
+
+    def delete_session(self, token):
+        if not token:
+            return
+        c = self.conn()
+        c.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        c.commit()
+        c.close()
+
+    def get_user_by_session(self, token):
+        if not token:
+            return None
+        c = self.conn()
+        row = c.execute("""
+            SELECT u.* FROM users u
+            JOIN sessions s ON s.user_id = u.id
+            WHERE s.token = ? AND s.expires_at > ?
+        """, (token, datetime.utcnow())).fetchone()
+        c.close()
+        return dict(row) if row else None
+
+    def update_user_password(self, user_id, new_password):
+        pw_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+        c = self.conn()
+        c.execute("UPDATE users SET password_hash = ? WHERE id = ?", (pw_hash, user_id))
+        c.commit()
+        c.close()
+
+    def create_password_reset(self, user_id):
+        token = secrets.token_urlsafe(48)
+        exp = datetime.utcnow() + timedelta(minutes=Config.PASSWORD_RESET_TTL_MINUTES)
+        c = self.conn()
+        c.execute("INSERT INTO password_resets (token, user_id, expires_at, used) VALUES (?, ?, ?, 0)", (token, user_id, exp))
+        c.commit()
+        c.close()
+        return token
+
+    def get_valid_password_reset(self, token):
+        c = self.conn()
+        row = c.execute("""
+            SELECT * FROM password_resets
+            WHERE token = ? AND used = 0 AND expires_at > ?
+        """, (token, datetime.utcnow())).fetchone()
+        c.close()
+        return dict(row) if row else None
+
+    def mark_password_reset_used(self, token):
+        c = self.conn()
+        c.execute("UPDATE password_resets SET used = 1 WHERE token = ?", (token,))
+        c.commit()
+        c.close()
+
+    def upgrade_user(self, user_id, tier, customer_id=None, sub_id=None, billing_cycle=None):
+        c = self.conn()
+        c.execute("""
+            UPDATE users
+            SET tier = ?, stripe_customer_id = COALESCE(?, stripe_customer_id),
+                stripe_sub_id = COALESCE(?, stripe_sub_id), billing_cycle = COALESCE(?, billing_cycle)
+            WHERE id = ?
+        """, (tier, customer_id, sub_id, billing_cycle, user_id))
+        c.commit()
+        c.close()
+
+    def cache_get(self, key, ttl):
+        c = self.conn()
+        r = c.execute("SELECT payload_json, updated_at FROM market_cache WHERE cache_key = ?", (key,)).fetchone()
+        c.close()
+        if r and (int(time.time()) - r["updated_at"]) <= ttl:
+            return json.loads(r["payload_json"])
+        return None
+
+    def cache_get_stale(self, key):
+        c = self.conn()
+        r = c.execute("SELECT payload_json FROM market_cache WHERE cache_key = ?", (key,)).fetchone()
+        c.close()
+        return json.loads(r["payload_json"]) if r else None
+
+    def cache_set(self, key, payload):
+        c = self.conn()
+        c.execute("REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
+                  (key, json.dumps(payload), int(time.time())))
+        c.commit()
+        c.close()
+
+    def replace_active_signals(self, signals):
+        c = self.conn()
+        c.execute("DELETE FROM active_signals")
+        now = int(time.time())
+        for s in signals:
+            c.execute("""
+                INSERT INTO active_signals (
+                    signal_id, symbol, asset_type, name, signal, confidence, regime,
+                    entry_price, stop_loss, take_profit_1, take_profit_2,
+                    risk_reward, reason, price, change_pct, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                s["signal_id"], s["symbol"], s["asset_type"], s["name"], s["signal"],
+                s["confidence"], s["regime"], s["entry_price"], s["stop_loss"],
+                s["take_profit_1"], s["take_profit_2"], s["risk_reward"], s["reason"],
+                s["price"], s["change_pct"], now
+            ))
+        c.commit()
+        c.close()
+
+    def get_active_signals(self, asset_type=None, limit=50):
+        c = self.conn()
+        if asset_type:
+            rows = c.execute("""
+                SELECT * FROM active_signals
+                WHERE asset_type = ?
+                ORDER BY confidence DESC, risk_reward DESC, updated_at DESC
+                LIMIT ?
+            """, (asset_type, limit)).fetchall()
+        else:
+            rows = c.execute("""
+                SELECT * FROM active_signals
+                ORDER BY confidence DESC, risk_reward DESC, updated_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+
+    def sync_signal_history(self, signals):
+        c = self.conn()
+        now = int(time.time())
+        active_ids = set()
+
+        for s in signals:
+            active_ids.add(s["signal_id"])
+            row = c.execute("SELECT * FROM signal_history WHERE signal_id = ? AND outcome = 'OPEN'", (s["signal_id"],)).fetchone()
+            if not row:
+                c.execute("""
+                    INSERT INTO signal_history (
+                        history_id, signal_id, symbol, asset_type, name, signal, confidence,
+                        entry_price, stop_loss, take_profit_1, take_profit_2, risk_reward,
+                        outcome, outcome_note, updated_at, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', '', ?, ?)
+                """, (
+                    secrets.token_hex(16), s["signal_id"], s["symbol"], s["asset_type"], s["name"],
+                    s["signal"], s["confidence"], s["entry_price"], s["stop_loss"],
+                    s["take_profit_1"], s["take_profit_2"], s["risk_reward"], now, now
+                ))
+            else:
+                c.execute("UPDATE signal_history SET updated_at = ? WHERE history_id = ?", (now, row["history_id"]))
+
+        stale_open = c.execute("SELECT * FROM signal_history WHERE outcome = 'OPEN'").fetchall()
+        for row in stale_open:
+            if row["signal_id"] not in active_ids:
+                c.execute("""
+                    UPDATE signal_history
+                    SET outcome = 'EXPIRED', outcome_note = 'Signal rotated out of active set.', updated_at = ?
+                    WHERE history_id = ?
+                """, (now, row["history_id"]))
+
+        c.commit()
+        c.close()
+
+    def get_signal_history(self, limit=100):
+        c = self.conn()
+        rows = c.execute("SELECT * FROM signal_history ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+
+    def get_open_signal_history(self, limit=200):
+        c = self.conn()
+        rows = c.execute("SELECT * FROM signal_history WHERE outcome = 'OPEN' ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+
+    def update_signal_outcome(self, history_id, outcome, note):
+        c = self.conn()
+        c.execute("""
+            UPDATE signal_history
+            SET outcome = ?, outcome_note = ?, updated_at = ?
+            WHERE history_id = ?
+        """, (outcome, note, int(time.time()), history_id))
+        c.commit()
+        c.close()
+
+    def get_signal_stats(self):
+        c = self.conn()
+        total = c.execute("SELECT COUNT(*) AS n FROM signal_history").fetchone()["n"]
+        open_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='OPEN'").fetchone()["n"]
+        expired_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='EXPIRED'").fetchone()["n"]
+        tp1_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='TP1_HIT'").fetchone()["n"]
+        tp2_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='TP2_HIT'").fetchone()["n"]
+        stopped_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='STOPPED'").fetchone()["n"]
+        closed_wins = tp1_n + tp2_n
+        closed_total = closed_wins + stopped_n
+        win_rate = round((closed_wins / closed_total) * 100, 2) if closed_total > 0 else 0.0
+        c.close()
+        return {
+            "total": total, "open": open_n, "expired": expired_n,
+            "tp1_hit": tp1_n, "tp2_hit": tp2_n, "stopped": stopped_n,
+            "win_rate": win_rate
+        }
+
+    def subscribe_email(self, email):
+        c = self.conn()
+        c.execute("INSERT OR IGNORE INTO alert_subscribers (email, active) VALUES (?, 1)", (email.lower().strip(),))
+        c.commit()
+        c.close()
+
+    def unsubscribe_email(self, email):
+        c = self.conn()
+        c.execute("UPDATE alert_subscribers SET active = 0 WHERE email = ?", (email.lower().strip(),))
+        c.commit()
+        c.close()
+
+    def get_active_subscribers(self, limit=1000):
+        c = self.conn()
+        rows = c.execute("SELECT * FROM alert_subscribers WHERE active = 1 ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+
+    def log_email_event(self, email, event_type, meta=None):
+        c = self.conn()
+        c.execute("INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
+                  (email.lower().strip(), event_type, json.dumps(meta or {})))
+        c.commit()
+        c.close()
+
+    def was_broadcast_sent_recently(self, channel, message_hash, cooldown_seconds):
+        c = self.conn()
+        cutoff = int(time.time()) - cooldown_seconds
+        row = c.execute("""
+            SELECT id FROM broadcast_log
+            WHERE channel = ? AND message_hash = ? AND created_at >= ?
+            LIMIT 1
+        """, (channel, message_hash, cutoff)).fetchone()
+        c.close()
+        return bool(row)
+
+    def log_broadcast(self, channel, message_hash):
+        c = self.conn()
+        c.execute("INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
+                  (channel, message_hash, int(time.time())))
+        c.commit()
+        c.close()
+
+    def get_user_count(self):
+        c = self.conn()
+        n = c.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
+        c.close()
+        return n
+
+    def get_paid_user_count(self):
+        c = self.conn()
+        n = c.execute("SELECT COUNT(*) AS n FROM users WHERE tier IN ('pro','elite')").fetchone()["n"]
+        c.close()
+        return n
+
+    def get_subscriber_count(self):
+        c = self.conn()
+        n = c.execute("SELECT COUNT(*) AS n FROM alert_subscribers WHERE active = 1").fetchone()["n"]
+        c.close()
+        return n
+
+    def add_watchlist(self, user_id, symbol, asset_type):
+        c = self.conn()
+        c.execute("INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
+                  (user_id, symbol.upper().strip(), asset_type.strip()))
+        c.commit()
+        c.close()
+
+    def remove_watchlist(self, user_id, symbol, asset_type):
+        c = self.conn()
+        c.execute("DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
+                  (user_id, symbol.upper().strip(), asset_type.strip()))
+        c.commit()
+        c.close()
+
+    def get_watchlist(self, user_id):
+        c = self.conn()
+        rows = c.execute("SELECT * FROM watchlists WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+
+    def ensure_alert_prefs(self, user_id):
+        c = self.conn()
+        c.execute("INSERT OR IGNORE INTO user_alert_prefs (user_id) VALUES (?)", (user_id,))
+        c.commit()
+        c.close()
+
+    def get_alert_prefs(self, user_id):
+        self.ensure_alert_prefs(user_id)
+        c = self.conn()
+        row = c.execute("SELECT * FROM user_alert_prefs WHERE user_id = ?", (user_id,)).fetchone()
+        c.close()
+        return dict(row) if row else None
+
+    def update_alert_prefs(self, user_id, email_enabled, telegram_enabled, discord_enabled, min_confidence):
+        self.ensure_alert_prefs(user_id)
+        c = self.conn()
+        c.execute("""
+            UPDATE user_alert_prefs
+            SET email_enabled = ?, telegram_enabled = ?, discord_enabled = ?, min_confidence = ?
+            WHERE user_id = ?
+        """, (email_enabled, telegram_enabled, discord_enabled, min_confidence, user_id))
+        c.commit()
+        c.close()
+
+    def add_portfolio_position(self, user_id, symbol, asset_type, quantity, avg_cost):
+        c = self.conn()
+        c.execute("""
+            INSERT INTO portfolio_positions (user_id, symbol, asset_type, quantity, avg_cost)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, symbol.upper().strip(), asset_type.strip(), float(quantity), float(avg_cost)))
+        c.commit()
+        c.close()
+
+    def delete_portfolio_position(self, position_id, user_id):
+        c = self.conn()
+        c.execute("DELETE FROM portfolio_positions WHERE id = ? AND user_id = ?", (position_id, user_id))
+        c.commit()
+        c.close()
+
+    def get_portfolio_positions(self, user_id):
+        c = self.conn()
+        rows = c.execute("""
+            SELECT * FROM portfolio_positions
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+        """, (user_id,)).fetchall()
+        c.close()
+        return [dict(r) for r in rows]
+
+
 db = Database(Config.DATABASE)
 MEM_CACHE = {}
 
 
+def get_web_user():
+    return db.get_user_by_session(request.cookies.get("session_token"))
+
 @app.before_request
 def load_req():
-    g.user = db.get_user_by_session(request.cookies.get("session_token"))
+    g.user = get_web_user()
     if g.user and str(g.user.get("email", "")).lower() == Config.ADMIN_EMAIL:
         if g.user.get("tier") != "elite":
             db.upgrade_user(g.user["id"], "elite", billing_cycle="admin")
             g.user = db.get_user_by_id(g.user["id"])
-
 
 def is_admin():
     return bool(g.user and str(g.user.get("email", "")).lower() == Config.ADMIN_EMAIL)
@@ -928,7 +1498,7 @@ def generate_active_signals():
             signals.append(setup)
 
     signals.sort(key=lambda x: (x["confidence"], x["risk_reward"]), reverse=True)
-    signals = signals[:50]
+    signals = signals[:40]
     db.replace_active_signals(signals)
     db.sync_signal_history(signals)
     return signals
@@ -984,6 +1554,50 @@ def evaluate_signal_history_outcomes():
         if outcome:
             db.update_signal_outcome(row["history_id"], outcome, note)
 
+def get_confidence_accuracy_breakdown():
+    rows = db.get_signal_history(limit=1000)
+    buckets = {
+        "50-59": {"wins": 0, "losses": 0},
+        "60-69": {"wins": 0, "losses": 0},
+        "70-79": {"wins": 0, "losses": 0},
+        "80-89": {"wins": 0, "losses": 0},
+        "90-99": {"wins": 0, "losses": 0},
+    }
+
+    for r in rows:
+        conf = int(r.get("confidence", 0))
+        outcome = str(r.get("outcome", "OPEN"))
+
+        if outcome not in ("TP1_HIT", "TP2_HIT", "STOPPED"):
+            continue
+
+        if conf < 60:
+            bucket = "50-59"
+        elif conf < 70:
+            bucket = "60-69"
+        elif conf < 80:
+            bucket = "70-79"
+        elif conf < 90:
+            bucket = "80-89"
+        else:
+            bucket = "90-99"
+
+        if outcome in ("TP1_HIT", "TP2_HIT"):
+            buckets[bucket]["wins"] += 1
+        elif outcome == "STOPPED":
+            buckets[bucket]["losses"] += 1
+
+    result = []
+    for bucket, vals in buckets.items():
+        total = vals["wins"] + vals["losses"]
+        acc = round((vals["wins"] / total) * 100, 2) if total > 0 else 0.0
+        result.append({
+            "bucket": bucket,
+            "wins": vals["wins"],
+            "losses": vals["losses"],
+            "accuracy": acc
+        })
+    return result
 
 def send_email(to_email, subject, html_body, text_body=None):
     if not Config.RESEND_API_KEY:
@@ -1080,9 +1694,7 @@ def maybe_broadcast_top_signals(signals):
 
 PLAN_META = {
     "pro_monthly": {"tier": "pro", "billing": "monthly", "price_id": Config.STRIPE_PRICE_PRO_MONTHLY},
-    "pro_yearly": {"tier": "pro", "billing": "yearly", "price_id": Config.STRIPE_PRICE_PRO_YEARLY},
     "elite_monthly": {"tier": "elite", "billing": "monthly", "price_id": Config.STRIPE_PRICE_ELITE_MONTHLY},
-    "elite_yearly": {"tier": "elite", "billing": "yearly", "price_id": Config.STRIPE_PRICE_ELITE_YEARLY},
 }
 
 def stripe_enabled():
@@ -1155,7 +1767,7 @@ def top_signal_cards_html(signals, blurred=False):
     for s in signals[:3]:
         signal_class = s["signal"].lower()
         link = f"/crypto/{h(s['symbol'])}" if s["asset_type"] == "crypto" else f"/stocks/{h(s['symbol'])}"
-        inner = f"""
+        cards += f"""
         <div class="metric-box">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
             <div>
@@ -1173,10 +1785,7 @@ def top_signal_cards_html(signals, blurred=False):
           </div>
         </div>
         """
-        cards += inner
-
     fallback_html = '<p class="muted">No active signals yet.</p>'
-
     if not blurred:
         return f"<div class='grid-3'>{cards or fallback_html}</div>"
 
@@ -1239,6 +1848,9 @@ def nav_layout(title, content, description="AVA Markets - AI market intelligence
             <a href="/crypto">Crypto</a>
             <a href="/stocks">Stocks</a>
             <a href="/signals">Signals</a>
+            <a href="/trends">Trends</a>
+            <a href="/forecasts">Forecasts</a>
+            <a href="/hot">HOT</a>
             <a href="/history">History</a>
             <a href="/portfolio">Portfolio</a>
             <a href="/blog">Blog</a>
@@ -1281,7 +1893,6 @@ def live_update_script(page_type):
         }} catch(e) {{}}
     }}, 30000);
     </script>"""
-
 
 def current_price_for(symbol, asset_type):
     symbol = symbol.upper()
@@ -1351,50 +1962,72 @@ def build_portfolio_analytics(user_id):
         "worst": worst
     }
 
-def get_confidence_accuracy_breakdown():
-    rows = db.get_signal_history(limit=2000)
-    buckets = {
-        "50-59": {"wins": 0, "losses": 0},
-        "60-69": {"wins": 0, "losses": 0},
-        "70-79": {"wins": 0, "losses": 0},
-        "80-89": {"wins": 0, "losses": 0},
-        "90-99": {"wins": 0, "losses": 0},
-    }
+def combined_market_assets():
+    assets = []
+    for a in fetch_crypto_quotes_safe():
+        item = dict(a)
+        item["asset_type"] = "crypto"
+        assets.append(item)
+    for a in fetch_stock_quotes_safe():
+        item = dict(a)
+        item["asset_type"] = "stock"
+        assets.append(item)
+    return assets
 
-    for r in rows:
-        conf = int(r.get("confidence", 0))
-        outcome = str(r.get("outcome", "OPEN"))
+def get_trend_lists():
+    assets = combined_market_assets()
+    gainers = sorted(assets, key=lambda x: float(x.get("change", 0)), reverse=True)[:12]
+    losers = sorted(assets, key=lambda x: float(x.get("change", 0)))[:12]
+    return gainers, losers
 
-        if outcome not in ("TP1_HIT", "TP2_HIT", "STOPPED"):
+def get_hot_assets():
+    signals = db.get_active_signals(limit=100)
+    hot = sorted(
+        signals,
+        key=lambda x: (float(x.get("confidence", 0)), float(x.get("risk_reward", 0)), abs(float(x.get("change_pct", 0)))),
+        reverse=True
+    )
+    return hot[:12]
+
+def build_forecasts():
+    forecasts = []
+
+    for asset in fetch_crypto_quotes_safe()[:12]:
+        candles = fetch_crypto_candles(asset["symbol"], 100)
+        if not candles:
             continue
-
-        if conf < 60:
-            bucket = "50-59"
-        elif conf < 70:
-            bucket = "60-69"
-        elif conf < 80:
-            bucket = "70-79"
-        elif conf < 90:
-            bucket = "80-89"
-        else:
-            bucket = "90-99"
-
-        if outcome in ("TP1_HIT", "TP2_HIT"):
-            buckets[bucket]["wins"] += 1
-        else:
-            buckets[bucket]["losses"] += 1
-
-    result = []
-    for bucket, vals in buckets.items():
-        total = vals["wins"] + vals["losses"]
-        acc = round((vals["wins"] / total) * 100, 2) if total > 0 else 0.0
-        result.append({
-            "bucket": bucket,
-            "wins": vals["wins"],
-            "losses": vals["losses"],
-            "accuracy": acc
+        brain = ava_brain_analyze(candles)
+        forecasts.append({
+            "symbol": asset["symbol"],
+            "name": asset["name"],
+            "asset_type": "crypto",
+            "price": asset["price"],
+            "change": asset["change"],
+            "signal": brain["signal"],
+            "confidence": brain["conf"],
+            "regime": brain["regime"],
+            "summary": brain["reason"]
         })
-    return result
+
+    for asset in fetch_stock_quotes_safe()[:12]:
+        candles = fetch_stock_candles(asset["symbol"])
+        if not candles:
+            continue
+        brain = ava_brain_analyze(candles)
+        forecasts.append({
+            "symbol": asset["symbol"],
+            "name": asset["name"],
+            "asset_type": "stock",
+            "price": asset["price"],
+            "change": asset["change"],
+            "signal": brain["signal"],
+            "confidence": brain["conf"],
+            "regime": brain["regime"],
+            "summary": brain["reason"]
+        })
+
+    forecasts.sort(key=lambda x: int(x["confidence"]), reverse=True)
+    return forecasts[:20]
 
 
 @app.route("/api/live/crypto-list")
@@ -1436,11 +2069,11 @@ def home():
     content = f"""
     <section class="hero">
       <div class="hero-card">
-        <div class="badge">AVA Super Brain</div>
+        <div class="badge">AVA Super Sharp</div>
         <h1>Trade cleaner. Scan faster. Move with conviction.</h1>
         <p class="hero-sub">
           AVA Markets surfaces ranked crypto and stock trade setups with entries, stops, targets,
-          confidence scoring, regime detection, portfolio analytics, and premium signal intelligence.
+          confidence scoring, regime detection, portfolio analytics, Trends, HOT feeds, and Forecasts.
         </p>
         <div class="btns">
           <a class="btn btn-primary" href="/pricing">Unlock Pro</a>
@@ -1467,7 +2100,7 @@ def home():
       <div class="grid-3">
         <div class="card">
           <div class="badge">Live Scan</div>
-          <h3>Crypto + Stocks</h3>
+          <h3>Crypto + Stocks + Commodities</h3>
           <p>Track liquid assets across digital and traditional markets from one dashboard.</p>
         </div>
         <div class="card">
@@ -1476,9 +2109,9 @@ def home():
           <p>Track total value, allocation, unrealized PnL, and your top winners and losers.</p>
         </div>
         <div class="card">
-          <div class="badge">SEO Learning Hub</div>
-          <h3>Learn assets faster</h3>
-          <p>Read AVA guides for BTC, ETH, AAPL, NVDA, and trading workflows designed for real users.</p>
+          <div class="badge">Forecast Engine</div>
+          <h3>AVA Super Sharp</h3>
+          <p>Use Trends, HOT, and Forecasts to see what AVA thinks matters right now.</p>
         </div>
       </div>
     </section>
@@ -1494,38 +2127,21 @@ def home():
 
         <div class="price-card featured">
           <div class="pill" style="background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.2);color:#bae6fd;">Most Popular</div>
-          <div class="price">$19<span class="small">/mo</span></div>
-          <div class="small">or $190 yearly</div>
+          <div class="price">$15<span class="small">/mo</span></div>
           <p>Full active signals, detail pages, signal history, tracked outcomes and premium workflow tools.</p>
           <a class="btn btn-primary" style="width:100%;margin-top:10px;" href="/pricing">Get Pro</a>
         </div>
 
         <div class="price-card">
           <div class="pill" style="background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.24);color:#fde68a;">Elite</div>
-          <div class="price">$49<span class="small">/mo</span></div>
-          <div class="small">or $490 yearly</div>
-          <p>Everything in Pro plus premium alert-ready workflow and future expansion features.</p>
+          <div class="price">$35<span class="small">/mo</span></div>
+          <p>Everything in Pro plus premium alert-ready workflow and hottest conviction feeds.</p>
           <a class="btn btn-secondary" style="width:100%;margin-top:10px;" href="/pricing">Go Elite</a>
         </div>
       </div>
     </section>
     """
-    return nav_layout("AVA Markets - AI Market Intelligence", content, "AI-driven crypto and stock signals, portfolio analytics, and market intelligence.")
-
-@app.route("/subscribe-alerts", methods=["POST"])
-def subscribe_alerts():
-    email = request.form.get("email", "").strip().lower()
-    if not email or "@" not in email:
-        return nav_layout("Alert Signup", "<section class='section'><div class='card'><div class='error'>Please enter a valid email address.</div><a href='/' class='btn btn-secondary'>Go Back</a></div></section>")
-    db.subscribe_email(email)
-    return nav_layout("Alert Signup", """
-    <section class="section">
-      <div class="card">
-        <div class="success">You’re subscribed. AVA will keep you posted.</div>
-        <a href="/" class="btn btn-primary">Back to Home</a>
-      </div>
-    </section>
-    """)
+    return nav_layout("AVA Markets - AI Market Intelligence", content, "AI-driven crypto and stock signals, portfolio analytics, trends, forecasts and market intelligence.")
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -1560,7 +2176,7 @@ def register():
       </div>
     </div>
     """
-    return nav_layout("Register - AVA", content, "Create your AVA Markets account.")
+    return nav_layout("Register - AVA", content)
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -1591,7 +2207,7 @@ def login():
       </div>
     </div>
     """
-    return nav_layout("Login - AVA", content, "Login to AVA Markets.")
+    return nav_layout("Login - AVA", content)
 
 @app.route("/logout")
 def logout():
@@ -1750,7 +2366,7 @@ def dashboard():
       </div>
     </section>
     """
-    return nav_layout("Dashboard - AVA", content, "Your AVA Markets dashboard.")
+    return nav_layout("Dashboard - AVA", content)
 
 @app.route("/alerts/preferences", methods=["POST"])
 @require_auth
@@ -1851,7 +2467,7 @@ def portfolio():
       </div>
     </section>
     """
-    return nav_layout("Portfolio - AVA", content, "Track portfolio allocation, cost basis, unrealized PnL, and exposure.")
+    return nav_layout("Portfolio - AVA", content)
 
 @app.route("/portfolio/add", methods=["POST"])
 @require_auth
@@ -1888,7 +2504,7 @@ def pricing():
     content = """
     <section class="section">
       <div style="text-align:center; margin-bottom:34px;">
-        <div class="badge">Monetization Engine</div>
+        <div class="badge">Simple Monthly Pricing</div>
         <h1>Choose your AVA plan</h1>
         <p>Start free. Upgrade when you want ranked active signals, tracked history, portfolio tools, and premium workflow features.</p>
       </div>
@@ -1909,41 +2525,39 @@ def pricing():
 
         <div class="price-card featured">
           <div class="pill" style="background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.22);color:#bae6fd;">Most Popular</div>
-          <div class="price">$19<span class="small">/mo</span></div>
-          <div class="small" style="margin-bottom:14px;">or $190 yearly</div>
+          <div class="price">$15<span class="small">/mo</span></div>
           <p>Best for most traders who want real AVA workflow value.</p>
           <ul style="line-height:2; color:var(--text);">
             <li>Active Signal Trades</li>
             <li>AVA Brain detail pages</li>
             <li>Signal history + win-rate</li>
             <li>Portfolio + premium workflow</li>
+            <li>Trends + Forecasts</li>
           </ul>
-          <div class="btns" style="margin-top:10px;">
-            <form action="/checkout/pro_monthly" method="POST" style="flex:1;"><button type="submit" class="btn btn-primary" style="width:100%;">Get Pro Monthly</button></form>
-            <form action="/checkout/pro_yearly" method="POST" style="flex:1;"><button type="submit" class="btn btn-secondary" style="width:100%;">Get Pro Yearly</button></form>
-          </div>
+          <form action="/checkout/pro_monthly" method="POST">
+            <button type="submit" class="btn btn-primary" style="width:100%;">Get Pro Monthly</button>
+          </form>
         </div>
 
         <div class="price-card">
           <div class="pill" style="background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.22);color:#fde68a;">Power Users</div>
-          <div class="price">$49<span class="small">/mo</span></div>
-          <div class="small" style="margin-bottom:14px;">or $490 yearly</div>
-          <p>For advanced users wanting alert-driven premium expansion features.</p>
+          <div class="price">$35<span class="small">/mo</span></div>
+          <p>For advanced users wanting sharper market intelligence and premium workflow expansion.</p>
           <ul style="line-height:2; color:var(--text);">
             <li>Everything in Pro</li>
-            <li>Telegram / Discord alert support</li>
-            <li>Priority premium features</li>
-            <li>Highest conviction workflow</li>
+            <li>HOT feed</li>
+            <li>Elite Forecasts</li>
+            <li>Telegram / Discord alert-ready workflow</li>
+            <li>Highest conviction market view</li>
           </ul>
-          <div class="btns" style="margin-top:10px;">
-            <form action="/checkout/elite_monthly" method="POST" style="flex:1;"><button type="submit" class="btn btn-primary" style="width:100%;">Get Elite Monthly</button></form>
-            <form action="/checkout/elite_yearly" method="POST" style="flex:1;"><button type="submit" class="btn btn-secondary" style="width:100%;">Get Elite Yearly</button></form>
-          </div>
+          <form action="/checkout/elite_monthly" method="POST">
+            <button type="submit" class="btn btn-secondary" style="width:100%;">Get Elite Monthly</button>
+          </form>
         </div>
       </div>
     </section>
     """
-    return nav_layout("Pricing - AVA", content, "AVA pricing plans for Free, Pro, and Elite.")
+    return nav_layout("Pricing - AVA", content)
 
 @app.route("/checkout/<plan_key>", methods=["POST"])
 @require_auth
@@ -1975,7 +2589,7 @@ def signals():
           </div>
         </section>
         """
-        return nav_layout("Signals - AVA", content, "Premium ranked trade setups from AVA.")
+        return nav_layout("Signals - AVA", content)
 
     rows = ""
     for s in signals:
@@ -2014,13 +2628,147 @@ def signals():
       </div>
     </section>
     """
-    return nav_layout("Signals - AVA", content, "Active AVA trade setups with confidence, entry, stop and targets.")
+    return nav_layout("Signals - AVA", content)
+
+@app.route("/trends")
+@require_tier("pro")
+def trends():
+    gainers, losers = get_trend_lists()
+
+    gainers_html = ""
+    for a in gainers:
+        link = f"/crypto/{h(a['symbol'])}" if a["asset_type"] == "crypto" else f"/stocks/{h(a['symbol'])}"
+        gainers_html += f"""
+        <tr>
+          <td><strong><a href="{link}">{h(a['symbol'])}</a></strong><div class="small">{h(a['name'])}</div></td>
+          <td>{h(a['asset_type'].upper())}</td>
+          <td>{fmt_price(a['price'])}</td>
+          <td class="up">{fmt_change(a['change'])}</td>
+          <td><span class="signal signal-{a.get('signal','HOLD').lower()}">{a.get('signal','HOLD')}</span></td>
+        </tr>
+        """
+
+    losers_html = ""
+    for a in losers:
+        link = f"/crypto/{h(a['symbol'])}" if a["asset_type"] == "crypto" else f"/stocks/{h(a['symbol'])}"
+        losers_html += f"""
+        <tr>
+          <td><strong><a href="{link}">{h(a['symbol'])}</a></strong><div class="small">{h(a['name'])}</div></td>
+          <td>{h(a['asset_type'].upper())}</td>
+          <td>{fmt_price(a['price'])}</td>
+          <td class="down">{fmt_change(a['change'])}</td>
+          <td><span class="signal signal-{a.get('signal','HOLD').lower()}">{a.get('signal','HOLD')}</span></td>
+        </tr>
+        """
+
+    content = f"""
+    <section class="section">
+      <div class="badge">AVA Trends</div>
+      <h1>Market Trends</h1>
+      <p>Live strongest gainers and losers across crypto, stocks, and commodities.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Top Gainers</h3>
+          <div class="table-shell">
+            <table class="market-table">
+              <tr><th>Asset</th><th>Type</th><th>Price</th><th>Change</th><th>Signal</th></tr>
+              {gainers_html or "<tr><td colspan='5'>No data yet.</td></tr>"}
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Top Losers</h3>
+          <div class="table-shell">
+            <table class="market-table">
+              <tr><th>Asset</th><th>Type</th><th>Price</th><th>Change</th><th>Signal</th></tr>
+              {losers_html or "<tr><td colspan='5'>No data yet.</td></tr>"}
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+    """
+    return nav_layout("Trends - AVA", content)
+
+@app.route("/hot")
+@require_tier("elite")
+def hot():
+    hot_assets = get_hot_assets()
+
+    rows = ""
+    for s in hot_assets:
+        link = f"/crypto/{h(s['symbol'])}" if s["asset_type"] == "crypto" else f"/stocks/{h(s['symbol'])}"
+        rows += f"""
+        <tr>
+          <td><strong><a href="{link}">{h(s['symbol'])}</a></strong><div class="small">{h(s['name'])}</div></td>
+          <td>{h(s['asset_type'].upper())}</td>
+          <td><span class="signal signal-{h(s['signal'].lower())}">{h(s['signal'])}</span></td>
+          <td>{int(s['confidence'])}%</td>
+          <td>{fmt_price(s['entry_price'])}</td>
+          <td>{fmt_price(s['take_profit_1'])}</td>
+          <td>{h(s['risk_reward'])}:1</td>
+        </tr>
+        """
+
+    content = f"""
+    <section class="section">
+      <div class="badge">AVA HOT Feed</div>
+      <h1>HOT Setups</h1>
+      <p>Elite-only feed of the sharpest AVA-ranked setups with strongest confidence and structure.</p>
+      <div class="table-shell">
+        <table class="market-table">
+          <tr><th>Asset</th><th>Type</th><th>Signal</th><th>Confidence</th><th>Entry</th><th>TP1</th><th>R:R</th></tr>
+          {rows or "<tr><td colspan='7'>No HOT setups yet.</td></tr>"}
+        </table>
+      </div>
+    </section>
+    """
+    return nav_layout("HOT - AVA", content)
+
+@app.route("/forecasts")
+@require_tier("pro")
+def forecasts():
+    items = build_forecasts()
+
+    cards = ""
+    for f in items:
+        link = f"/crypto/{h(f['symbol'])}" if f["asset_type"] == "crypto" else f"/stocks/{h(f['symbol'])}"
+        cards += f"""
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+            <div>
+              <h3 style="margin-bottom:4px;"><a href="{link}">{h(f['symbol'])}</a></h3>
+              <div class="small">{h(f['name'])} • {h(f['asset_type'].upper())}</div>
+            </div>
+            <span class="signal signal-{h(f['signal'].lower())}">{h(f['signal'])}</span>
+          </div>
+          <div class="hr"></div>
+          <p><strong>Confidence:</strong> {int(f['confidence'])}%</p>
+          <p><strong>Regime:</strong> {h(f['regime'])}</p>
+          <p><strong>Price:</strong> {fmt_price(f['price'])}</p>
+          <p><strong>Change:</strong> {fmt_change(f['change'])}</p>
+          <p class="small">{h(f['summary'])}</p>
+        </div>
+        """
+
+    content = f"""
+    <section class="section">
+      <div class="badge">AVA Forecast Engine</div>
+      <h1>Forecasts</h1>
+      <p>AVA Super Sharp directional analysis across crypto, stocks, and commodities.</p>
+      <div class="grid-2">
+        {cards or "<p>No forecasts available yet.</p>"}
+      </div>
+    </section>
+    """
+    return nav_layout("Forecasts - AVA", content)
 
 @app.route("/history")
 def history():
     stats = db.get_signal_stats()
     confidence_rows = get_confidence_accuracy_breakdown()
-
     confidence_html = ""
     for row in confidence_rows:
         confidence_html += f"""
@@ -2049,10 +2797,10 @@ def history():
           </div>
         </section>
         """
-        return nav_layout("History - AVA", content, "AVA signal history and tracked win rate.")
+        return nav_layout("History - AVA", content)
 
     rows = ""
-    for r in db.get_signal_history(limit=240):
+    for r in db.get_signal_history(limit=120):
         rows += f"""
         <tr>
           <td><strong>{h(r['symbol'])}</strong><div class="small">{h(r['name'])}</div></td>
@@ -2095,7 +2843,7 @@ def history():
       </div>
     </section>
     """
-    return nav_layout("History - AVA", content, "Historical AVA signal outcomes and win rate.")
+    return nav_layout("History - AVA", content)
 
 @app.route("/crypto")
 def crypto():
@@ -2144,7 +2892,7 @@ def crypto():
     </section>
     {live_update_script("crypto")}
     """
-    return nav_layout("Crypto Signals and Prices - AVA", content, "Live crypto prices, AVA signals, and market intelligence.")
+    return nav_layout("Crypto Signals and Prices - AVA", content)
 
 @app.route("/stocks")
 def stocks():
@@ -2193,7 +2941,7 @@ def stocks():
     </section>
     {live_update_script("stocks")}
     """
-    return nav_layout("Stock Signals and Prices - AVA", content, "Live stock prices, commodity prices, and AVA market signals.")
+    return nav_layout("Stock Signals and Prices - AVA", content)
 
 @app.route("/crypto/<symbol>")
 @require_tier("pro")
@@ -2229,7 +2977,7 @@ def crypto_detail(symbol):
       <div class="card">{draw_candles_html(candles)}</div>
     </section>
     """
-    return nav_layout(f"{symbol} Signal Analysis - AVA", content, f"{symbol} premium signal analysis, chart and AVA Brain regime.")
+    return nav_layout(f"{symbol} Signal Analysis - AVA", content)
 
 @app.route("/stocks/<symbol>")
 @require_tier("pro")
@@ -2265,7 +3013,7 @@ def stock_detail(symbol):
       <div class="card">{draw_candles_html(candles)}</div>
     </section>
     """
-    return nav_layout(f"{symbol} Signal Analysis - AVA", content, f"{symbol} premium signal analysis, chart and AVA Brain regime.")
+    return nav_layout(f"{symbol} Signal Analysis - AVA", content)
 
 @app.route("/landing/<symbol>")
 def landing_symbol(symbol):
@@ -2292,7 +3040,7 @@ def landing_symbol(symbol):
           </div>
         </section>
         """
-        return nav_layout(f"{symbol} Price and Signals - AVA", content, f"{symbol} price, AVA signals, and trading guide.")
+        return nav_layout(f"{symbol} Price and Signals - AVA", content)
 
     if symbol in ("AAPL", "NVDA"):
         asset = next((a for a in fetch_stock_quotes_safe() if a["symbol"] == symbol), None)
@@ -2315,7 +3063,7 @@ def landing_symbol(symbol):
           </div>
         </section>
         """
-        return nav_layout(f"{symbol} Price and Signals - AVA", content, f"{symbol} price, AVA signals, and trading guide.")
+        return nav_layout(f"{symbol} Price and Signals - AVA", content)
 
     abort(404)
 
@@ -2345,7 +3093,7 @@ def learn_symbol(symbol):
       </div>
     </section>
     """
-    return nav_layout(page["title"], content, page["intro"])
+    return nav_layout(page["title"], content)
 
 @app.route("/blog")
 def blog():
@@ -2369,7 +3117,7 @@ def blog():
       </div>
     </section>
     """
-    return nav_layout("AVA Blog and Research", content, "AVA blog and research for crypto, stocks, and trading workflows.")
+    return nav_layout("AVA Blog and Research", content)
 
 @app.route("/blog/<slug>")
 def blog_post(slug):
@@ -2391,7 +3139,7 @@ def blog_post(slug):
       </div>
     </section>
     """
-    return nav_layout(post["title"], content, post["description"])
+    return nav_layout(post["title"], content)
 
 @app.route("/admin")
 @require_admin
@@ -2462,7 +3210,7 @@ def admin():
       </div>
     </section>
     """
-    return nav_layout("Admin - AVA", content, "AVA admin dashboard.")
+    return nav_layout("Admin - AVA", content)
 
 @app.route("/admin/broadcast", methods=["POST"])
 @require_admin
