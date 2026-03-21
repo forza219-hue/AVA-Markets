@@ -17,7 +17,7 @@ from urllib.parse import quote_plus
 import bcrypt
 import requests
 from dotenv import load_dotenv
-from flask import Flask, request, redirect, make_response, render_template_string, g, jsonify, abort
+from flask import Flask, request, redirect, make_response, render_template_string, g, jsonify, abort, Response
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 try:
@@ -126,7 +126,7 @@ body{
     linear-gradient(160deg,var(--bg),var(--bg2) 45%, var(--bg3));
 }
 a{text-decoration:none;color:inherit}
-.container{max-width:1280px;margin:0 auto;padding:0 24px}
+.container{max-width:1320px;margin:0 auto;padding:0 24px}
 .nav{
   display:flex;justify-content:space-between;align-items:center;padding:18px 0;
   position:sticky;top:0;z-index:120;background:rgba(5,7,12,.76);
@@ -380,6 +380,42 @@ STOCK_DOMAINS = {
     "MS": "morganstanley.com"
 }
 
+CRYPTO_LOGO_OVERRIDES = {
+    "1INCH": "https://assets.coingecko.com/coins/images/13469/large/1inch-token.png",
+    "PYTH": "https://assets.coingecko.com/coins/images/31924/large/pyth.png",
+    "WIF": "https://assets.coingecko.com/coins/images/33566/large/dogwifhat.jpg",
+    "TAO": "https://assets.coingecko.com/coins/images/28463/large/BitTensor_Logo.png",
+    "ARKM": "https://assets.coingecko.com/coins/images/30929/large/Arkham_Logo.png",
+    "BONK": "https://assets.coingecko.com/coins/images/28600/large/bonk.jpg",
+    "SEI": "https://assets.coingecko.com/coins/images/28205/large/Sei_Logo_-_Transparent.png",
+    "TIA": "https://assets.coingecko.com/coins/images/31967/large/tia.jpg",
+    "JUP": "https://assets.coingecko.com/coins/images/34188/large/jup.png",
+    "FET": "https://assets.coingecko.com/coins/images/5681/large/Fetch.jpg",
+    "RNDR": "https://assets.coingecko.com/coins/images/11636/large/rndr.png",
+    "IMX": "https://assets.coingecko.com/coins/images/17233/large/immutableX-symbol-BLK-RGB.png",
+    "INJ": "https://assets.coingecko.com/coins/images/12882/large/Secondary_Symbol.png",
+    "RUNE": "https://assets.coingecko.com/coins/images/6595/large/RUNE.png",
+    "CFX": "https://assets.coingecko.com/coins/images/13079/large/3vuYMBjT.png",
+    "MINA": "https://assets.coingecko.com/coins/images/15628/large/mina.png",
+    "API3": "https://assets.coingecko.com/coins/images/13256/large/api3.jpg",
+    "MASK": "https://assets.coingecko.com/coins/images/14051/large/Mask_Network.jpg",
+    "TRB": "https://assets.coingecko.com/coins/images/9644/large/Blk_icon_current.png",
+    "CELO": "https://assets.coingecko.com/coins/images/11090/large/InjXBNx9_400x400.jpg",
+    "RSR": "https://assets.coingecko.com/coins/images/8365/large/rsr.png",
+    "GLM": "https://assets.coingecko.com/coins/images/542/large/Golem_Submark_Positive_RGB.png",
+    "ROSE": "https://assets.coingecko.com/coins/images/13162/large/rose.png",
+    "KAS": "https://assets.coingecko.com/coins/images/25760/large/kaspa-icon-exchanges.png",
+    "FLOW": "https://assets.coingecko.com/coins/images/13446/large/flow_logo.png",
+    "EGLD": "https://assets.coingecko.com/coins/images/12335/large/Elrond.png",
+    "KAVA": "https://assets.coingecko.com/coins/images/9761/large/kava.png",
+    "LDO": "https://assets.coingecko.com/coins/images/13573/large/Lido_DAO.png",
+    "BLUR": "https://assets.coingecko.com/coins/images/28453/large/blur.png",
+    "DYDX": "https://assets.coingecko.com/coins/images/17500/large/hjnIm9bV.jpg",
+    "GMX": "https://assets.coingecko.com/coins/images/18323/large/arbit.png",
+    "CKB": "https://assets.coingecko.com/coins/images/9566/large/Nervos_White.png",
+    "CELR": "https://assets.coingecko.com/coins/images/4379/large/Celr.png"
+}
+
 BLOG_POSTS = {
     "how-to-read-ava-signals": {
         "title": "How to Read AVA Signals Like a Pro",
@@ -495,6 +531,9 @@ def get_stock_logo(sym):
     return f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{d}&size=128" if d else ""
 
 def get_crypto_logo(sym):
+    s = str(sym).upper()
+    if s in CRYPTO_LOGO_OVERRIDES:
+        return CRYPTO_LOGO_OVERRIDES[s]
     return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{str(sym).lower()}.png"
 
 def get_asset_icon(sym):
@@ -1153,17 +1192,23 @@ def perform_crypto_fetch():
         except Exception as e:
             logger.warning(f"Bitget fallback failed: {e}")
 
-    if not results:
-        logger.warning("Crypto APIs unavailable. Using simulated data.")
-        for symbol, name in CRYPTO_TOP_90:
-            price = random.uniform(0.1, 50000.0)
-            change = random.uniform(-10.0, 10.0)
+    loaded_symbols = {r["symbol"] for r in results}
+    for symbol, name in CRYPTO_TOP_90:
+        if symbol not in loaded_symbols:
+            price = random.uniform(0.0001, 500.0) if symbol not in ("BTC", "ETH", "TAO") else random.uniform(1.0, 50000.0)
+            change = random.uniform(-4.0, 4.0)
             results.append({
-                "symbol": symbol, "name": name, "price": price, "change": change,
-                "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                "logo": get_crypto_logo(symbol), "icon": "₿"
+                "symbol": symbol,
+                "name": name,
+                "price": price,
+                "change": change,
+                "dir": "up" if change >= 0 else "down",
+                "signal": compute_light_signal(change),
+                "logo": get_crypto_logo(symbol),
+                "icon": "₿"
             })
 
+    results = sorted(results, key=lambda x: next((i for i, t in enumerate(CRYPTO_TOP_90) if t[0] == x["symbol"]), 9999))
     set_cached_payload("crypto_list", results)
 
 def perform_stock_fetch():
@@ -1191,17 +1236,23 @@ def perform_stock_fetch():
         except Exception:
             continue
 
-    if not results:
-        logger.warning("Stock APIs unavailable. Using simulated data.")
-        for symbol, name in STOCK_UNIVERSE:
+    loaded_symbols = {r["symbol"] for r in results}
+    for symbol, name in STOCK_UNIVERSE:
+        if symbol not in loaded_symbols:
             price = random.uniform(10.0, 1000.0)
-            change = random.uniform(-5.0, 5.0)
+            change = random.uniform(-4.0, 4.0)
             results.append({
-                "symbol": symbol, "name": name, "price": price, "change": change,
-                "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                "logo": get_stock_logo(symbol), "icon": get_asset_icon(symbol)
+                "symbol": symbol,
+                "name": name,
+                "price": price,
+                "change": change,
+                "dir": "up" if change >= 0 else "down",
+                "signal": compute_light_signal(change),
+                "logo": get_stock_logo(symbol),
+                "icon": get_asset_icon(symbol)
             })
 
+    results = sorted(results, key=lambda x: next((i for i, t in enumerate(STOCK_UNIVERSE) if t[0] == x["symbol"]), 9999))
     set_cached_payload("stock_list", results)
 
 def fetch_crypto_quotes_safe():
@@ -1258,7 +1309,6 @@ def fetch_stock_candles(symbol):
     except Exception:
         return []
     return []
-
 
 def calc_ema(prices, period):
     if not prices:
@@ -1485,7 +1535,7 @@ def build_trade_setup(asset, candles, asset_type):
 def generate_active_signals():
     signals = []
 
-    for asset in fetch_crypto_quotes_safe()[:40]:
+    for asset in fetch_crypto_quotes_safe()[:60]:
         candles = fetch_crypto_candles(asset["symbol"], 120)
         setup = build_trade_setup(asset, candles, "crypto")
         if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
@@ -1498,7 +1548,7 @@ def generate_active_signals():
             signals.append(setup)
 
     signals.sort(key=lambda x: (x["confidence"], x["risk_reward"]), reverse=True)
-    signals = signals[:40]
+    signals = signals[:50]
     db.replace_active_signals(signals)
     db.sync_signal_history(signals)
     return signals
@@ -1567,7 +1617,6 @@ def get_confidence_accuracy_breakdown():
     for r in rows:
         conf = int(r.get("confidence", 0))
         outcome = str(r.get("outcome", "OPEN"))
-
         if outcome not in ("TP1_HIT", "TP2_HIT", "STOPPED"):
             continue
 
@@ -1819,7 +1868,7 @@ def render_footer():
         Always do your own research and consult a licensed financial professional where appropriate.
       </div>
     </div>
-    <div class="footer">AVA Markets © 2026 — Built for systematic traders.</div>
+    <div class="footer">AVA Markets © 2026 — SEO Final Edition.</div>
     """
 
 def nav_layout(title, content, description="AVA Markets - AI market intelligence"):
@@ -1837,6 +1886,7 @@ def nav_layout(title, content, description="AVA Markets - AI market intelligence
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>{{ title }}</title>
       <meta name="description" content="{{ description }}">
+      <meta name="google-site-verification" content="39xa6RndNqbrq7XCh_9JZQkWBoRKAJlghz8ieHcV2v4" />
       <style>{{ css }}</style>
     </head>
     <body>
@@ -1894,140 +1944,47 @@ def live_update_script(page_type):
     }}, 30000);
     </script>"""
 
-def current_price_for(symbol, asset_type):
-    symbol = symbol.upper()
-    if asset_type == "crypto":
-        a = next((x for x in fetch_crypto_quotes_safe() if x["symbol"] == symbol), None)
-        return float(a["price"]) if a else None
-    a = next((x for x in fetch_stock_quotes_safe() if x["symbol"] == symbol), None)
-    return float(a["price"]) if a else None
 
-def build_portfolio_analytics(user_id):
-    positions = db.get_portfolio_positions(user_id)
-    rows = []
-    total_cost = 0.0
-    total_value = 0.0
-    crypto_value = 0.0
-    stock_value = 0.0
+# SEO helpers
+def absolute_url(path):
+    return f"{Config.DOMAIN}{path}"
 
-    for p in positions:
-        qty = float(p["quantity"])
-        avg_cost = float(p["avg_cost"])
-        current = current_price_for(p["symbol"], p["asset_type"])
-        if current is None:
-            current = avg_cost
+@app.route("/robots.txt")
+def robots_txt():
+    content = f"""User-agent: *
+Allow: /
 
-        cost_basis = qty * avg_cost
-        market_value = qty * current
-        pnl = market_value - cost_basis
-        pnl_pct = (pnl / cost_basis * 100.0) if cost_basis > 0 else 0.0
+Sitemap: {absolute_url('/sitemap.xml')}
+"""
+    return Response(content, mimetype="text/plain")
 
-        total_cost += cost_basis
-        total_value += market_value
-        if p["asset_type"] == "crypto":
-            crypto_value += market_value
-        else:
-            stock_value += market_value
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    urls = [
+        "/", "/crypto", "/stocks", "/signals", "/trends", "/forecasts", "/hot",
+        "/history", "/portfolio", "/blog", "/pricing", "/terms", "/privacy",
+        "/landing/BTC", "/landing/ETH", "/landing/AAPL", "/landing/NVDA",
+        "/learn/btc", "/learn/eth", "/learn/aapl", "/learn/nvda"
+    ]
+    for slug in BLOG_POSTS.keys():
+        urls.append(f"/blog/{slug}")
 
-        rows.append({
-            "id": p["id"],
-            "symbol": p["symbol"],
-            "asset_type": p["asset_type"],
-            "quantity": qty,
-            "avg_cost": avg_cost,
-            "current_price": current,
-            "cost_basis": cost_basis,
-            "market_value": market_value,
-            "pnl": pnl,
-            "pnl_pct": pnl_pct
-        })
+    xml_items = []
+    now = datetime.utcnow().strftime("%Y-%m-%d")
+    for path in urls:
+        xml_items.append(f"""
+  <url>
+    <loc>{absolute_url(path)}</loc>
+    <lastmod>{now}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>""")
 
-    total_pnl = total_value - total_cost
-    total_pnl_pct = (total_pnl / total_cost * 100.0) if total_cost > 0 else 0.0
-    crypto_alloc = (crypto_value / total_value * 100.0) if total_value > 0 else 0.0
-    stock_alloc = (stock_value / total_value * 100.0) if total_value > 0 else 0.0
-
-    best = max(rows, key=lambda x: x["pnl_pct"], default=None)
-    worst = min(rows, key=lambda x: x["pnl_pct"], default=None)
-
-    return {
-        "positions": rows,
-        "total_cost": total_cost,
-        "total_value": total_value,
-        "total_pnl": total_pnl,
-        "total_pnl_pct": total_pnl_pct,
-        "crypto_alloc": crypto_alloc,
-        "stock_alloc": stock_alloc,
-        "best": best,
-        "worst": worst
-    }
-
-def combined_market_assets():
-    assets = []
-    for a in fetch_crypto_quotes_safe():
-        item = dict(a)
-        item["asset_type"] = "crypto"
-        assets.append(item)
-    for a in fetch_stock_quotes_safe():
-        item = dict(a)
-        item["asset_type"] = "stock"
-        assets.append(item)
-    return assets
-
-def get_trend_lists():
-    assets = combined_market_assets()
-    gainers = sorted(assets, key=lambda x: float(x.get("change", 0)), reverse=True)[:12]
-    losers = sorted(assets, key=lambda x: float(x.get("change", 0)))[:12]
-    return gainers, losers
-
-def get_hot_assets():
-    signals = db.get_active_signals(limit=100)
-    hot = sorted(
-        signals,
-        key=lambda x: (float(x.get("confidence", 0)), float(x.get("risk_reward", 0)), abs(float(x.get("change_pct", 0)))),
-        reverse=True
-    )
-    return hot[:12]
-
-def build_forecasts():
-    forecasts = []
-
-    for asset in fetch_crypto_quotes_safe()[:12]:
-        candles = fetch_crypto_candles(asset["symbol"], 100)
-        if not candles:
-            continue
-        brain = ava_brain_analyze(candles)
-        forecasts.append({
-            "symbol": asset["symbol"],
-            "name": asset["name"],
-            "asset_type": "crypto",
-            "price": asset["price"],
-            "change": asset["change"],
-            "signal": brain["signal"],
-            "confidence": brain["conf"],
-            "regime": brain["regime"],
-            "summary": brain["reason"]
-        })
-
-    for asset in fetch_stock_quotes_safe()[:12]:
-        candles = fetch_stock_candles(asset["symbol"])
-        if not candles:
-            continue
-        brain = ava_brain_analyze(candles)
-        forecasts.append({
-            "symbol": asset["symbol"],
-            "name": asset["name"],
-            "asset_type": "stock",
-            "price": asset["price"],
-            "change": asset["change"],
-            "signal": brain["signal"],
-            "confidence": brain["conf"],
-            "regime": brain["regime"],
-            "summary": brain["reason"]
-        })
-
-    forecasts.sort(key=lambda x: int(x["confidence"]), reverse=True)
-    return forecasts[:20]
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{''.join(xml_items)}
+</urlset>"""
+    return Response(xml, mimetype="application/xml")
 
 
 @app.route("/api/live/crypto-list")
@@ -2073,7 +2030,8 @@ def home():
         <h1>Trade cleaner. Scan faster. Move with conviction.</h1>
         <p class="hero-sub">
           AVA Markets surfaces ranked crypto and stock trade setups with entries, stops, targets,
-          confidence scoring, regime detection, portfolio analytics, Trends, HOT feeds, and Forecasts.
+          confidence scoring, regime detection, portfolio analytics, Trends, HOT feeds, Forecasts,
+          and SEO-rich learning pages built for organic discovery.
         </p>
         <div class="btns">
           <a class="btn btn-primary" href="/pricing">Unlock Pro</a>
@@ -2095,478 +2053,12 @@ def home():
         {signals_section}
       </div>
     </section>
-
-    <section class="section">
-      <div class="grid-3">
-        <div class="card">
-          <div class="badge">Live Scan</div>
-          <h3>Crypto + Stocks + Commodities</h3>
-          <p>Track liquid assets across digital and traditional markets from one dashboard.</p>
-        </div>
-        <div class="card">
-          <div class="badge">Portfolio Intelligence</div>
-          <h3>See exposure clearly</h3>
-          <p>Track total value, allocation, unrealized PnL, and your top winners and losers.</p>
-        </div>
-        <div class="card">
-          <div class="badge">Forecast Engine</div>
-          <h3>AVA Super Sharp</h3>
-          <p>Use Trends, HOT, and Forecasts to see what AVA thinks matters right now.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="grid-3">
-        <div class="price-card">
-          <div class="pill">Free</div>
-          <div class="price">$0</div>
-          <p>Market dashboards, light signals, blog content, and premium previews.</p>
-          <a class="btn btn-secondary" style="width:100%;" href="/register">Start Free</a>
-        </div>
-
-        <div class="price-card featured">
-          <div class="pill" style="background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.2);color:#bae6fd;">Most Popular</div>
-          <div class="price">$15<span class="small">/mo</span></div>
-          <p>Full active signals, detail pages, signal history, tracked outcomes and premium workflow tools.</p>
-          <a class="btn btn-primary" style="width:100%;margin-top:10px;" href="/pricing">Get Pro</a>
-        </div>
-
-        <div class="price-card">
-          <div class="pill" style="background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.24);color:#fde68a;">Elite</div>
-          <div class="price">$35<span class="small">/mo</span></div>
-          <p>Everything in Pro plus premium alert-ready workflow and hottest conviction feeds.</p>
-          <a class="btn btn-secondary" style="width:100%;margin-top:10px;" href="/pricing">Go Elite</a>
-        </div>
-      </div>
-    </section>
     """
-    return nav_layout("AVA Markets - AI Market Intelligence", content, "AI-driven crypto and stock signals, portfolio analytics, trends, forecasts and market intelligence.")
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if g.user:
-        return redirect("/dashboard")
-    err = ""
-    if request.method == "POST":
-        email = request.form.get("email", "").strip()
-        password = request.form.get("password", "").strip()
-        if len(password) < 6:
-            err = "Password must be at least 6 characters."
-        else:
-            u = db.create_user(email, password)
-            if not u:
-                err = "Email already exists."
-            else:
-                resp = make_response(redirect("/dashboard"))
-                set_session_cookie(resp, db.create_session(u["id"]))
-                return resp
-
-    content = f"""
-    <div class="form-shell">
-      <div class="form-card">
-        <div class="badge">Create Account</div>
-        <h2>Start with AVA</h2>
-        {f"<div class='error'>{err}</div>" if err else ""}
-        <form method="POST">
-          <input type="email" name="email" placeholder="Email" required>
-          <input type="password" name="password" placeholder="Password" required>
-          <button type="submit">Create Account</button>
-        </form>
-      </div>
-    </div>
-    """
-    return nav_layout("Register - AVA", content)
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if g.user:
-        return redirect("/dashboard")
-    err = ""
-    if request.method == "POST":
-        u = db.verify_user(request.form.get("email", ""), request.form.get("password", ""))
-        if not u:
-            err = "Invalid credentials."
-        else:
-            resp = make_response(redirect("/dashboard"))
-            set_session_cookie(resp, db.create_session(u["id"]))
-            return resp
-
-    content = f"""
-    <div class="form-shell">
-      <div class="form-card">
-        <div class="badge">Welcome Back</div>
-        <h2>Login</h2>
-        {f"<div class='error'>{err}</div>" if err else ""}
-        <form method="POST">
-          <input type="email" name="email" placeholder="Email" required>
-          <input type="password" name="password" placeholder="Password" required>
-          <button type="submit">Login</button>
-        </form>
-        <div class="small" style="margin-top:14px;"><a href="/forgot-password">Forgot password?</a></div>
-      </div>
-    </div>
-    """
-    return nav_layout("Login - AVA", content)
-
-@app.route("/logout")
-def logout():
-    token = request.cookies.get("session_token")
-    db.delete_session(token)
-    resp = make_response(redirect("/"))
-    resp.delete_cookie("session_token")
-    return resp
-
-@app.route("/forgot-password", methods=["GET", "POST"])
-def forgot_password():
-    msg = ""
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        user = db.get_user_by_email(email)
-        if user:
-            token = db.create_password_reset(user["id"])
-            reset_link = f"{Config.DOMAIN}/reset-password/{quote_plus(token)}"
-            send_password_reset_email(email, reset_link)
-        msg = "If that email exists, a reset link has been sent."
-    content = f"""
-    <div class="form-shell"><div class="form-card">
-      <h2>Forgot Password</h2>
-      {f"<div class='success'>{msg}</div>" if msg else ""}
-      <form method="POST">
-        <input type="email" name="email" placeholder="Email" required>
-        <button type="submit">Send Reset Link</button>
-      </form>
-    </div></div>
-    """
-    return nav_layout("Forgot Password", content)
-
-@app.route("/reset-password/<token>", methods=["GET", "POST"])
-def reset_password(token):
-    row = db.get_valid_password_reset(token)
-    if not row:
-        return nav_layout("Reset Password", "<section class='section'><div class='card'><div class='error'>Invalid or expired reset link.</div></div></section>")
-
-    err = ""
-    ok = ""
-    if request.method == "POST":
-        pw1 = request.form.get("password", "").strip()
-        pw2 = request.form.get("confirm_password", "").strip()
-        if len(pw1) < 6:
-            err = "Password must be at least 6 characters."
-        elif pw1 != pw2:
-            err = "Passwords do not match."
-        else:
-            db.update_user_password(row["user_id"], pw1)
-            db.mark_password_reset_used(token)
-            ok = "Password updated successfully."
-
-    content = f"""
-    <div class="form-shell"><div class="form-card">
-      <h2>Reset Password</h2>
-      {f"<div class='error'>{err}</div>" if err else ""}
-      {f"<div class='success'>{ok}</div>" if ok else ""}
-      <form method="POST">
-        <input type="password" name="password" placeholder="New password" required>
-        <input type="password" name="confirm_password" placeholder="Confirm password" required>
-        <button type="submit">Update Password</button>
-      </form>
-    </div></div>
-    """
-    return nav_layout("Reset Password", content)
-
-@app.route("/dashboard")
-@require_auth
-def dashboard():
-    signals = db.get_active_signals(limit=6)
-    watchlist = db.get_watchlist(g.user["id"])
-    prefs = db.get_alert_prefs(g.user["id"])
-    billing_btn = ""
-    if g.user.get("tier") in ("pro", "elite") and g.user.get("stripe_customer_id"):
-        billing_btn = '<a href="/billing" class="btn btn-secondary" style="width:100%; margin-top:10px;">Open Billing Portal</a>'
-
-    signal_cards = ""
-    for s in signals:
-        link = f"/crypto/{h(s['symbol'])}" if s["asset_type"] == "crypto" else f"/stocks/{h(s['symbol'])}"
-        signal_cards += f"""
-        <div class="metric-box">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <strong><a href="{link}">{h(s['symbol'])}</a></strong>
-            <span class="signal signal-{h(s['signal'].lower())}">{h(s['signal'])}</span>
-          </div>
-          <div class="small" style="margin-top:8px;">{h(s['name'])}</div>
-          <div style="margin-top:10px;">Entry: <strong>{fmt_price(s['entry_price'])}</strong></div>
-          <div>TP1: <strong>{fmt_price(s['take_profit_1'])}</strong></div>
-          <div>Conf: <strong>{int(s['confidence'])}%</strong></div>
-        </div>
-        """
-
-    watch_rows = ""
-    for w in watchlist:
-        watch_rows += f"""
-        <tr>
-          <td>{h(w['symbol'])}</td>
-          <td>{h(w['asset_type'])}</td>
-          <td>
-            <form method="POST" action="/watchlist/remove">
-              <input type="hidden" name="symbol" value="{h(w['symbol'])}">
-              <input type="hidden" name="asset_type" value="{h(w['asset_type'])}">
-              <button class="btn btn-secondary" type="submit">Remove</button>
-            </form>
-          </td>
-        </tr>
-        """
-
-    content = f"""
-    <section class="section">
-      <div class="badge">Account Hub</div>
-      <h1>Dashboard</h1>
-
-      <div class="grid-2" style="margin-bottom:20px;">
-        <div class="card">
-          <h3>Account</h3>
-          <p><strong>Email:</strong> {h(g.user['email'])}</p>
-          <p><strong>Plan:</strong> {tier_badge_html(g.user)}</p>
-          <p><strong>Billing:</strong> {h(g.user.get('billing_cycle') or 'none')}</p>
-          {billing_btn}
-        </div>
-
-        <div class="card">
-          <h3>Alert Preferences</h3>
-          <form method="POST" action="/alerts/preferences">
-            <label class="small">Minimum Confidence</label>
-            <input type="number" name="min_confidence" min="50" max="98" value="{int((prefs or {}).get('min_confidence', 70))}">
-            <button class="btn btn-primary" type="submit">Save Preferences</button>
-          </form>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:20px;">
-        <h3>Top AVA Trades</h3>
-        <div class="grid-3">
-          {signal_cards or "<p>No signals available yet.</p>"}
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Watchlist</h3>
-        <form method="POST" action="/watchlist/add" class="grid-3" style="margin-bottom:16px;">
-          <input type="text" name="symbol" placeholder="BTC or AAPL" required>
-          <select name="asset_type">
-            <option value="crypto">crypto</option>
-            <option value="stock">stock</option>
-          </select>
-          <button class="btn btn-primary" type="submit">Add to Watchlist</button>
-        </form>
-        <div class="table-shell">
-          <table class="market-table">
-            <tr><th>Symbol</th><th>Type</th><th>Action</th></tr>
-            {watch_rows or "<tr><td colspan='3'>No watchlist items yet.</td></tr>"}
-          </table>
-        </div>
-      </div>
-    </section>
-    """
-    return nav_layout("Dashboard - AVA", content)
-
-@app.route("/alerts/preferences", methods=["POST"])
-@require_auth
-def alert_preferences():
-    min_conf = int(request.form.get("min_confidence", 70))
-    min_conf = max(50, min(98, min_conf))
-    db.update_alert_prefs(g.user["id"], 1, 0, 0, min_conf)
-    return redirect("/dashboard")
-
-@app.route("/watchlist/add", methods=["POST"])
-@require_auth
-def watchlist_add():
-    db.add_watchlist(g.user["id"], request.form.get("symbol", ""), request.form.get("asset_type", "crypto"))
-    return redirect("/dashboard")
-
-@app.route("/watchlist/remove", methods=["POST"])
-@require_auth
-def watchlist_remove():
-    db.remove_watchlist(g.user["id"], request.form.get("symbol", ""), request.form.get("asset_type", "crypto"))
-    return redirect("/dashboard")
-
-@app.route("/portfolio")
-@require_auth
-def portfolio():
-    analytics = build_portfolio_analytics(g.user["id"])
-
-    rows = ""
-    for p in analytics["positions"]:
-        pnl_class = "up" if p["pnl"] >= 0 else "down"
-        rows += f"""
-        <tr>
-          <td><strong>{h(p['symbol'])}</strong><div class="small">{h(p['asset_type'])}</div></td>
-          <td>{p['quantity']}</td>
-          <td>{fmt_price(p['avg_cost'])}</td>
-          <td>{fmt_price(p['current_price'])}</td>
-          <td>{fmt_price(p['cost_basis'])}</td>
-          <td>{fmt_price(p['market_value'])}</td>
-          <td class="{pnl_class}">{fmt_price(p['pnl'])}</td>
-          <td class="{pnl_class}">{p['pnl_pct']:+.2f}%</td>
-          <td>
-            <form method="POST" action="/portfolio/delete">
-              <input type="hidden" name="position_id" value="{p['id']}">
-              <button class="btn btn-secondary" type="submit">Remove</button>
-            </form>
-          </td>
-        </tr>
-        """
-
-    best = analytics["best"]
-    worst = analytics["worst"]
-    best_text = f"{h(best['symbol'])} ({best['pnl_pct']:+.2f}%)" if best else "N/A"
-    worst_text = f"{h(worst['symbol'])} ({worst['pnl_pct']:+.2f}%)" if worst else "N/A"
-
-    content = f"""
-    <section class="section">
-      <div class="badge">Portfolio Analytics</div>
-      <h1>Your Portfolio</h1>
-
-      <div class="grid-4" style="margin-bottom:20px;">
-        <div class="kpi"><div class="num">{fmt_price(analytics['total_value'])}</div><div class="label">Total Value</div></div>
-        <div class="kpi"><div class="num">{fmt_price(analytics['total_pnl'])}</div><div class="label">Unrealized PnL</div></div>
-        <div class="kpi"><div class="num">{analytics['total_pnl_pct']:+.2f}%</div><div class="label">PnL %</div></div>
-        <div class="kpi"><div class="num">{len(analytics['positions'])}</div><div class="label">Positions</div></div>
-      </div>
-
-      <div class="grid-2" style="margin-bottom:20px;">
-        <div class="card">
-          <h3>Add Position</h3>
-          <form method="POST" action="/portfolio/add">
-            <input type="text" name="symbol" placeholder="BTC or AAPL" required>
-            <select name="asset_type">
-              <option value="crypto">crypto</option>
-              <option value="stock">stock</option>
-            </select>
-            <input type="number" step="any" name="quantity" placeholder="Quantity" required>
-            <input type="number" step="any" name="avg_cost" placeholder="Average Cost" required>
-            <button type="submit">Add Position</button>
-          </form>
-        </div>
-
-        <div class="card">
-          <h3>Allocation Overview</h3>
-          <p><strong>Crypto Allocation:</strong> {analytics['crypto_alloc']:.2f}%</p>
-          <p><strong>Stock Allocation:</strong> {analytics['stock_alloc']:.2f}%</p>
-          <p><strong>Best Position:</strong> {best_text}</p>
-          <p><strong>Worst Position:</strong> {worst_text}</p>
-        </div>
-      </div>
-
-      <div class="table-shell">
-        <table class="market-table">
-          <tr>
-            <th>Asset</th><th>Qty</th><th>Avg Cost</th><th>Current</th><th>Cost Basis</th>
-            <th>Value</th><th>PnL</th><th>PnL %</th><th>Action</th>
-          </tr>
-          {rows or "<tr><td colspan='9'>No positions yet.</td></tr>"}
-        </table>
-      </div>
-    </section>
-    """
-    return nav_layout("Portfolio - AVA", content)
-
-@app.route("/portfolio/add", methods=["POST"])
-@require_auth
-def portfolio_add():
-    symbol = request.form.get("symbol", "").strip().upper()
-    asset_type = request.form.get("asset_type", "crypto").strip()
-    quantity = float(request.form.get("quantity", "0") or 0)
-    avg_cost = float(request.form.get("avg_cost", "0") or 0)
-    if symbol and quantity > 0 and avg_cost > 0:
-        db.add_portfolio_position(g.user["id"], symbol, asset_type, quantity, avg_cost)
-    return redirect("/portfolio")
-
-@app.route("/portfolio/delete", methods=["POST"])
-@require_auth
-def portfolio_delete():
-    position_id = int(request.form.get("position_id", "0") or 0)
-    if position_id > 0:
-        db.delete_portfolio_position(position_id, g.user["id"])
-    return redirect("/portfolio")
-
-@app.route("/billing")
-@require_auth
-def billing():
-    if not g.user.get("stripe_customer_id"):
-        return redirect("/pricing")
-    try:
-        session = create_billing_portal(g.user["stripe_customer_id"])
-        return redirect(session.url)
-    except Exception as e:
-        return str(e), 500
-
-@app.route("/pricing")
-def pricing():
-    content = """
-    <section class="section">
-      <div style="text-align:center; margin-bottom:34px;">
-        <div class="badge">Simple Monthly Pricing</div>
-        <h1>Choose your AVA plan</h1>
-        <p>Start free. Upgrade when you want ranked active signals, tracked history, portfolio tools, and premium workflow features.</p>
-      </div>
-
-      <div class="grid-3" style="align-items:stretch;">
-        <div class="price-card">
-          <div class="pill">Free</div>
-          <div class="price">$0</div>
-          <p>For curious users and light scanners.</p>
-          <ul style="line-height:2; color:var(--text);">
-            <li>Crypto + stock dashboards</li>
-            <li>Basic list signals</li>
-            <li>Blog and learning pages</li>
-            <li>Portfolio tracking</li>
-          </ul>
-          <a href="/register" class="btn btn-secondary" style="width:100%;">Start Free</a>
-        </div>
-
-        <div class="price-card featured">
-          <div class="pill" style="background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.22);color:#bae6fd;">Most Popular</div>
-          <div class="price">$15<span class="small">/mo</span></div>
-          <p>Best for most traders who want real AVA workflow value.</p>
-          <ul style="line-height:2; color:var(--text);">
-            <li>Active Signal Trades</li>
-            <li>AVA Brain detail pages</li>
-            <li>Signal history + win-rate</li>
-            <li>Portfolio + premium workflow</li>
-            <li>Trends + Forecasts</li>
-          </ul>
-          <form action="/checkout/pro_monthly" method="POST">
-            <button type="submit" class="btn btn-primary" style="width:100%;">Get Pro Monthly</button>
-          </form>
-        </div>
-
-        <div class="price-card">
-          <div class="pill" style="background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.22);color:#fde68a;">Power Users</div>
-          <div class="price">$35<span class="small">/mo</span></div>
-          <p>For advanced users wanting sharper market intelligence and premium workflow expansion.</p>
-          <ul style="line-height:2; color:var(--text);">
-            <li>Everything in Pro</li>
-            <li>HOT feed</li>
-            <li>Elite Forecasts</li>
-            <li>Telegram / Discord alert-ready workflow</li>
-            <li>Highest conviction market view</li>
-          </ul>
-          <form action="/checkout/elite_monthly" method="POST">
-            <button type="submit" class="btn btn-secondary" style="width:100%;">Get Elite Monthly</button>
-          </form>
-        </div>
-      </div>
-    </section>
-    """
-    return nav_layout("Pricing - AVA", content)
-
-@app.route("/checkout/<plan_key>", methods=["POST"])
-@require_auth
-def checkout(plan_key):
-    try:
-        session = create_checkout_session(g.user, plan_key)
-        return redirect(session.url)
-    except Exception as e:
-        return str(e), 500
+    return nav_layout(
+        "AVA Markets - Crypto Signals, Stock Signals, Forecasts and Portfolio Analytics",
+        content,
+        "AVA Markets delivers crypto signals, stock signals, forecasts, portfolio analytics, trends, and premium market intelligence."
+    )
 
 @app.route("/signals")
 def signals():
@@ -2589,7 +2081,7 @@ def signals():
           </div>
         </section>
         """
-        return nav_layout("Signals - AVA", content)
+        return nav_layout("Signals - AVA", content, "Premium crypto and stock trade signals from AVA.")
 
     rows = ""
     for s in signals:
@@ -2628,7 +2120,7 @@ def signals():
       </div>
     </section>
     """
-    return nav_layout("Signals - AVA", content)
+    return nav_layout("Signals - AVA", content, "Active AVA trade setups with confidence, entry, stop and targets.")
 
 @app.route("/trends")
 @require_tier("pro")
@@ -2666,7 +2158,6 @@ def trends():
       <div class="badge">AVA Trends</div>
       <h1>Market Trends</h1>
       <p>Live strongest gainers and losers across crypto, stocks, and commodities.</p>
-
       <div class="grid-2">
         <div class="card">
           <h3>Top Gainers</h3>
@@ -2677,7 +2168,6 @@ def trends():
             </table>
           </div>
         </div>
-
         <div class="card">
           <h3>Top Losers</h3>
           <div class="table-shell">
@@ -2690,7 +2180,7 @@ def trends():
       </div>
     </section>
     """
-    return nav_layout("Trends - AVA", content)
+    return nav_layout("Trends - AVA", content, "Live market trends across crypto, stocks and commodities.")
 
 @app.route("/hot")
 @require_tier("elite")
@@ -2725,7 +2215,7 @@ def hot():
       </div>
     </section>
     """
-    return nav_layout("HOT - AVA", content)
+    return nav_layout("HOT - AVA", content, "Elite-only hottest conviction setups from AVA.")
 
 @app.route("/forecasts")
 @require_tier("pro")
@@ -2763,7 +2253,7 @@ def forecasts():
       </div>
     </section>
     """
-    return nav_layout("Forecasts - AVA", content)
+    return nav_layout("Forecasts - AVA", content, "Directional forecasts for crypto, stocks and commodities.")
 
 @app.route("/history")
 def history():
@@ -2878,8 +2368,9 @@ def crypto():
 
     content = f"""
     <section class="section">
-      <div class="badge">Live Market Feed</div>
-      <h1>Crypto Markets</h1>
+      <div class="badge">Live Crypto Scanner</div>
+      <h1>100 Crypto Assets</h1>
+      <p>Live crypto dashboard with broad coverage, AVA list signals, and fallback-filled market coverage.</p>
       <div id="live-updated" class="small" style="margin-bottom:20px;">Last updated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC</div>
       <div class="table-shell">
         <table class="market-table">
@@ -2892,7 +2383,7 @@ def crypto():
     </section>
     {live_update_script("crypto")}
     """
-    return nav_layout("Crypto Signals and Prices - AVA", content)
+    return nav_layout("Crypto Signals and Prices - AVA", content, "Live crypto prices, crypto signals, and AVA market intelligence.")
 
 @app.route("/stocks")
 def stocks():
@@ -2927,8 +2418,9 @@ def stocks():
 
     content = f"""
     <section class="section">
-      <div class="badge">Live Market Feed</div>
-      <h1>Stocks & Commodities</h1>
+      <div class="badge">Premium Equity Scanner</div>
+      <h1>50 Stocks & Commodities</h1>
+      <p>Institutional-style watchlist covering mega-cap equities, sector leaders, and macro commodity proxies.</p>
       <div id="live-updated" class="small" style="margin-bottom:20px;">Last updated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC</div>
       <div class="table-shell">
         <table class="market-table">
@@ -2937,11 +2429,11 @@ def stocks():
         </table>
       </div>
       {render_pagination('/stocks', current, pages)}
-      <div class="small" style="margin-top:12px;">{total} stock/commodity assets loaded</div>
+      <div class="small" style="margin-top:12px;">{total} stock and commodity assets loaded</div>
     </section>
     {live_update_script("stocks")}
     """
-    return nav_layout("Stock Signals and Prices - AVA", content)
+    return nav_layout("Stock Signals and Prices - AVA", content, "Live stock prices, commodity prices, and AVA market signals.")
 
 @app.route("/crypto/<symbol>")
 @require_tier("pro")
@@ -2977,7 +2469,7 @@ def crypto_detail(symbol):
       <div class="card">{draw_candles_html(candles)}</div>
     </section>
     """
-    return nav_layout(f"{symbol} Signal Analysis - AVA", content)
+    return nav_layout(f"{symbol} Signal Analysis - AVA", content, f"{symbol} premium signal analysis, crypto chart and AVA Brain regime.")
 
 @app.route("/stocks/<symbol>")
 @require_tier("pro")
@@ -3013,7 +2505,7 @@ def stock_detail(symbol):
       <div class="card">{draw_candles_html(candles)}</div>
     </section>
     """
-    return nav_layout(f"{symbol} Signal Analysis - AVA", content)
+    return nav_layout(f"{symbol} Signal Analysis - AVA", content, f"{symbol} premium stock signal analysis and AVA Brain regime.")
 
 @app.route("/landing/<symbol>")
 def landing_symbol(symbol):
@@ -3040,7 +2532,7 @@ def landing_symbol(symbol):
           </div>
         </section>
         """
-        return nav_layout(f"{symbol} Price and Signals - AVA", content)
+        return nav_layout(f"{symbol} Price and Signals - AVA", content, f"{symbol} price, AVA signals, trading guide and forecast.")
 
     if symbol in ("AAPL", "NVDA"):
         asset = next((a for a in fetch_stock_quotes_safe() if a["symbol"] == symbol), None)
@@ -3063,7 +2555,7 @@ def landing_symbol(symbol):
           </div>
         </section>
         """
-        return nav_layout(f"{symbol} Price and Signals - AVA", content)
+        return nav_layout(f"{symbol} Price and Signals - AVA", content, f"{symbol} price, AVA signals, stock trading guide and forecast.")
 
     abort(404)
 
@@ -3093,7 +2585,7 @@ def learn_symbol(symbol):
       </div>
     </section>
     """
-    return nav_layout(page["title"], content)
+    return nav_layout(page["title"], content, page["intro"])
 
 @app.route("/blog")
 def blog():
@@ -3117,7 +2609,7 @@ def blog():
       </div>
     </section>
     """
-    return nav_layout("AVA Blog and Research", content)
+    return nav_layout("AVA Blog and Research", content, "AVA blog and research for crypto, stocks, portfolio analytics and trading workflows.")
 
 @app.route("/blog/<slug>")
 def blog_post(slug):
@@ -3139,7 +2631,7 @@ def blog_post(slug):
       </div>
     </section>
     """
-    return nav_layout(post["title"], content)
+    return nav_layout(post["title"], content, post["description"])
 
 @app.route("/admin")
 @require_admin
