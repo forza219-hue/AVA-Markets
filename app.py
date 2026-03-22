@@ -58,8 +58,6 @@ class Config:
     STRIPE_PRICE_PRO_MONTHLY = os.environ.get("STRIPE_PRICE_PRO_MONTHLY", "").strip()
     STRIPE_PRICE_ELITE_MONTHLY = os.environ.get("STRIPE_PRICE_ELITE_MONTHLY", "").strip()
 
-    FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "").strip()
-
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
     DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
@@ -78,6 +76,9 @@ class Config:
 
     SIGNAL_MIN_CONFIDENCE = 70
     SIGNAL_MIN_RR = 1.2
+
+    CRYPTO_SIGNAL_EXPIRY_HOURS = int(os.environ.get("CRYPTO_SIGNAL_EXPIRY_HOURS", 48))
+    STOCK_SIGNAL_EXPIRY_HOURS = int(os.environ.get("STOCK_SIGNAL_EXPIRY_HOURS", 240))
 
 
 if stripe and Config.STRIPE_SECRET_KEY:
@@ -100,20 +101,10 @@ else:
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 :root{
-  --bg:#05070c;
-  --bg2:#09111a;
-  --bg3:#0f1824;
-  --card:rgba(255,255,255,.045);
-  --border:rgba(255,255,255,.08);
-  --text:#f8fafc;
-  --muted:#94a3b8;
-  --yellow:#facc15;
-  --yellow2:#fde047;
-  --yellow3:#eab308;
-  --cyan:#38bdf8;
-  --green:#22c55e;
-  --red:#ef4444;
-  --shadow:0 28px 80px rgba(0,0,0,.45);
+  --bg:#05070c; --bg2:#09111a; --bg3:#0f1824; --card:rgba(255,255,255,.045);
+  --border:rgba(255,255,255,.08); --text:#f8fafc; --muted:#94a3b8;
+  --yellow:#facc15; --yellow2:#fde047; --yellow3:#eab308;
+  --cyan:#38bdf8; --green:#22c55e; --red:#ef4444; --shadow:0 28px 80px rgba(0,0,0,.45);
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -165,40 +156,25 @@ p{color:var(--muted);line-height:1.7;font-size:1rem}
 .hero-sub{font-size:1.08rem;max-width:720px}
 .btns{display:flex;gap:14px;flex-wrap:wrap;margin-top:22px}
 .btn{
-  display:inline-flex;align-items:center;justify-content:center;
-  padding:14px 18px;border-radius:14px;font-weight:800;border:1px solid transparent;
-  cursor:pointer;transition:.2s
+  display:inline-flex;align-items:center;justify-content:center;padding:14px 18px;
+  border-radius:14px;font-weight:800;border:1px solid transparent;cursor:pointer;transition:.2s
 }
 .btn:hover{transform:translateY(-2px)}
-.btn-primary{
-  background:linear-gradient(90deg,var(--yellow2),var(--yellow3));
-  color:#111827;box-shadow:0 12px 30px rgba(250,204,21,.18)
-}
-.btn-secondary{
-  background:rgba(255,255,255,.04);
-  border-color:rgba(255,255,255,.10);color:var(--text)
-}
-.btn-dark{
-  background:#0d131d;border:1px solid rgba(255,255,255,.08);color:#fff
-}
+.btn-primary{background:linear-gradient(90deg,var(--yellow2),var(--yellow3));color:#111827}
+.btn-secondary{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.10);color:var(--text)}
+.btn-dark{background:#0d131d;border:1px solid rgba(255,255,255,.08);color:#fff}
 .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
 .grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
 .grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
-.kpi{
-  padding:18px;border-radius:18px;background:rgba(255,255,255,.03);
-  border:1px solid rgba(255,255,255,.05)
-}
+.kpi{padding:18px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}
 .kpi .num{font-size:1.7rem;font-weight:900;color:#fff}
 .kpi .label{color:var(--muted);font-size:.92rem}
 .table-shell{overflow:hidden}
 .market-table{width:100%;border-collapse:collapse}
 .market-table th,.market-table td{
-  padding:16px 14px;border-bottom:1px solid rgba(255,255,255,.06);
-  text-align:left;vertical-align:top
+  padding:16px 14px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left;vertical-align:top
 }
-.market-table th{
-  color:#d6dce5;background:rgba(255,255,255,.02);font-size:.91rem;font-weight:800
-}
+.market-table th{color:#d6dce5;background:rgba(255,255,255,.02);font-size:.91rem;font-weight:800}
 .market-table tr:hover{background:rgba(255,255,255,.02)}
 .asset-name strong{display:block}
 .asset-name span{display:block;color:var(--muted);font-size:.84rem;margin-top:4px}
@@ -213,8 +189,7 @@ p{color:var(--muted);line-height:1.7;font-size:1rem}
 .signal-sell{background:rgba(239,68,68,.14);color:#fca5a5}
 .pill{
   display:inline-flex;padding:7px 12px;border-radius:999px;
-  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
-  color:#fff;font-size:.8rem;font-weight:700
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:#fff;font-size:.8rem;font-weight:700
 }
 .form-shell{display:flex;justify-content:center;align-items:center;min-height:70vh}
 .form-card{
@@ -223,42 +198,25 @@ p{color:var(--muted);line-height:1.7;font-size:1rem}
   border:1px solid var(--border);box-shadow:var(--shadow)
 }
 .form-card input,.form-card select{
-  width:100%;padding:14px 16px;margin:10px 0;border-radius:14px;
-  border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);
-  color:var(--text);outline:none;transition:.2s
+  width:100%;padding:14px 16px;margin:10px 0;border-radius:14px;border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.04);color:var(--text);outline:none;transition:.2s
 }
 .form-card input:focus,.form-card select:focus{border-color:rgba(250,204,21,.45)}
 .form-card button{
   width:100%;padding:14px 18px;margin-top:10px;border:none;border-radius:14px;
-  background:linear-gradient(90deg,var(--yellow2),var(--yellow3));
-  color:#111827;font-weight:900;cursor:pointer
+  background:linear-gradient(90deg,var(--yellow2),var(--yellow3));color:#111827;font-weight:900;cursor:pointer
 }
-.error{
-  color:#fecaca;background:rgba(239,68,68,.12);padding:10px;border-radius:10px;
-  font-size:.92rem;margin-bottom:10px
-}
-.success{
-  color:#bbf7d0;background:rgba(34,197,94,.12);padding:10px;border-radius:10px;
-  font-size:.92rem;margin-bottom:10px
-}
-.metric-box{
-  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);
-  padding:16px;border-radius:16px
-}
-.candle-container{
-  height:200px;display:flex;align-items:flex-end;gap:4px;padding:20px 0;
-  border-bottom:1px solid rgba(255,255,255,.05)
-}
+.error{color:#fecaca;background:rgba(239,68,68,.12);padding:10px;border-radius:10px;font-size:.92rem;margin-bottom:10px}
+.success{color:#bbf7d0;background:rgba(34,197,94,.12);padding:10px;border-radius:10px;font-size:.92rem;margin-bottom:10px}
+.metric-box{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);padding:16px;border-radius:16px}
+.candle-container{height:200px;display:flex;align-items:flex-end;gap:4px;padding:20px 0;border-bottom:1px solid rgba(255,255,255,.05)}
 .candle{flex:1;position:relative;height:100%}
 .wick{position:absolute;left:50%;transform:translateX(-50%);width:2px;border-radius:2px}
 .body{position:absolute;left:50%;transform:translateX(-50%);width:80%;border-radius:3px;max-width:12px}
 .c-up .wick{background:#34d399}.c-up .body{background:linear-gradient(180deg,#34d399,#16a34a)}
 .c-down .wick{background:#f87171}.c-down .body{background:linear-gradient(180deg,#f87171,#dc2626)}
 .pagination{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
-.page-link{
-  padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.08);color:var(--text);font-weight:800
-}
+.page-link{padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text);font-weight:800}
 .price{font-size:2.4rem;font-weight:900;margin:8px 0 6px}
 .small{font-size:.92rem;color:var(--muted)}
 .muted{color:var(--muted)}
@@ -268,17 +226,11 @@ p{color:var(--muted);line-height:1.7;font-size:1rem}
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(180deg, rgba(5,7,12,.04), rgba(5,7,12,.78))
 }
-.lock-card{
-  max-width:360px;text-align:center;padding:20px;border-radius:18px;
-  background:rgba(10,15,23,.92);border:1px solid rgba(250,204,21,.2)
-}
-.alert-box{
-  border:1px solid rgba(250,204,21,.18);background:rgba(250,204,21,.06);
-  color:#fde68a;padding:14px;border-radius:14px
-}
+.lock-card{max-width:360px;text-align:center;padding:20px;border-radius:18px;background:rgba(10,15,23,.92);border:1px solid rgba(250,204,21,.2)}
+.alert-box{border:1px solid rgba(250,204,21,.18);background:rgba(250,204,21,.06);color:#fde68a;padding:14px;border-radius:14px}
 .footer-top{
-  display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;
-  padding:26px 0;border-top:1px solid rgba(255,255,255,.06);margin-top:40px
+  display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:26px 0;
+  border-top:1px solid rgba(255,255,255,.06);margin-top:40px
 }
 .disclaimer{color:#8fa0b6;font-size:.84rem;line-height:1.7;max-width:980px}
 .footer{padding:10px 0 40px;color:var(--muted);font-size:.9rem}
@@ -292,26 +244,29 @@ p{color:var(--muted);line-height:1.7;font-size:1rem}
 }
 """
 
-CRYPTO_TOP_90 = [
+CRYPTO_TOP_100 = [
     ("BTC", "Bitcoin"), ("ETH", "Ethereum"), ("BNB", "BNB"), ("SOL", "Solana"), ("XRP", "XRP"),
     ("DOGE", "Dogecoin"), ("ADA", "Cardano"), ("AVAX", "Avalanche"), ("LINK", "Chainlink"), ("DOT", "Polkadot"),
     ("MATIC", "Polygon"), ("LTC", "Litecoin"), ("BCH", "Bitcoin Cash"), ("ATOM", "Cosmos"), ("UNI", "Uniswap"),
     ("NEAR", "NEAR Protocol"), ("APT", "Aptos"), ("ARB", "Arbitrum"), ("OP", "Optimism"), ("SUI", "Sui"),
     ("PEPE", "Pepe"), ("SHIB", "Shiba Inu"), ("TRX", "TRON"), ("ETC", "Ethereum Classic"), ("XLM", "Stellar"),
     ("HBAR", "Hedera"), ("ICP", "Internet Computer"), ("FIL", "Filecoin"), ("INJ", "Injective"), ("RNDR", "Render"),
-    ("TAO", "Bittensor"), ("IMX", "Immutable"), ("SEI", "Sei"), ("TIA", "Celestia"), ("JUP", "Jupiter"),
+    ("IMX", "Immutable"), ("SEI", "Sei"), ("TIA", "Celestia"), ("JUP", "Jupiter"),
     ("PYTH", "Pyth Network"), ("BONK", "Bonk"), ("WIF", "dogwifhat"), ("FET", "Fetch.ai"), ("RUNE", "THORChain"),
-    ("AAVE", "Aave"), ("ALGO", "Algorand"), ("FLOW", "Flow"), ("MKR", "Maker"), ("SAND", "The Sandbox"),
-    ("MANA", "Decentraland"), ("GRT", "The Graph"), ("EGLD", "MultiversX"), ("KAS", "Kaspa"), ("XMR", "Monero"),
+    ("AAVE", "Aave"), ("ALGO", "Algorand"), ("MKR", "Maker"), ("SAND", "The Sandbox"),
+    ("MANA", "Decentraland"), ("GRT", "The Graph"), ("EGLD", "MultiversX"), ("XMR", "Monero"),
     ("XTZ", "Tezos"), ("EOS", "EOS"), ("AXS", "Axie Infinity"), ("CHZ", "Chiliz"), ("CRV", "Curve DAO"),
     ("COMP", "Compound"), ("SNX", "Synthetix"), ("1INCH", "1inch"), ("ZEC", "Zcash"), ("DASH", "Dash"),
     ("KAVA", "Kava"), ("ROSE", "Oasis"), ("LDO", "Lido DAO"), ("BLUR", "Blur"), ("DYDX", "dYdX"),
-    ("GMX", "GMX"), ("CFX", "Conflux"), ("MINA", "Mina"), ("CKB", "Nervos"), ("IOTA", "IOTA"),
+    ("GMX", "GMX"), ("CKB", "Nervos"), ("IOTA", "IOTA"),
     ("QTUM", "Qtum"), ("ZIL", "Zilliqa"), ("BAT", "Basic Attention Token"), ("ENJ", "Enjin Coin"), ("HOT", "Holo"),
-    ("ANKR", "Ankr"), ("WOO", "WOO"), ("YFI", "yearn.finance"), ("SUSHI", "Sushi"), ("CELR", "Celer Network"),
+    ("ANKR", "Ankr"), ("YFI", "yearn.finance"), ("SUSHI", "Sushi"), ("CELR", "Celer Network"),
     ("ONT", "Ontology"), ("SKL", "SKALE"), ("RSR", "Reserve Rights"), ("LRC", "Loopring"), ("NEXO", "Nexo"),
     ("GLM", "Golem"), ("FLUX", "Flux"), ("API3", "API3"), ("MASK", "Mask Network"), ("OCEAN", "Ocean Protocol"),
-    ("ARKM", "Arkham"), ("TRB", "Tellor"), ("BAND", "Band Protocol"), ("STORJ", "Storj"), ("CELO", "Celo")
+    ("TRB", "Tellor"), ("BAND", "Band Protocol"), ("STORJ", "Storj"), ("CELO", "Celo"),
+    ("TRUMP", "OFFICIAL TRUMP"), ("BTT", "BitTorrent [New]"), ("LUNC", "Terra Classic"), ("TON", "Toncoin"), ("CRO", "Cronos"),
+    ("PENGU", "Pudgy Penguins"), ("PUMP", "Pump.fun"), ("FLOKI", "FLOKI"), ("STRK", "Starknet"), ("XEC", "eCash"),
+    ("THETA", "Theta Network"), ("JASMY", "JasmyCoin")
 ]
 
 STOCK_UNIVERSE = [
@@ -331,61 +286,24 @@ STOCK_UNIVERSE = [
 ]
 
 STOCK_DOMAINS = {
-    "AAPL": "apple.com",
-    "MSFT": "microsoft.com",
-    "NVDA": "nvidia.com",
-    "AMZN": "amazon.com",
-    "GOOGL": "google.com",
-    "META": "meta.com",
-    "TSLA": "tesla.com",
-    "BRK-B": "berkshirehathaway.com",
-    "JPM": "jpmorganchase.com",
-    "V": "visa.com",
-    "MA": "mastercard.com",
-    "UNH": "uhc.com",
-    "XOM": "exxonmobil.com",
-    "LLY": "lilly.com",
-    "AVGO": "broadcom.com",
-    "ORCL": "oracle.com",
-    "COST": "costco.com",
-    "WMT": "walmart.com",
-    "HD": "homedepot.com",
-    "PG": "pg.com",
-    "KO": "coca-cola.com",
-    "PEP": "pepsico.com",
-    "ABBV": "abbvie.com",
-    "BAC": "bankofamerica.com",
-    "AMD": "amd.com",
-    "CRM": "salesforce.com",
-    "NFLX": "netflix.com",
-    "ADBE": "adobe.com",
-    "INTC": "intel.com",
-    "QCOM": "qualcomm.com",
-    "CSCO": "cisco.com",
-    "TMO": "thermofisher.com",
-    "MCD": "mcdonalds.com",
-    "NKE": "nike.com",
-    "DIS": "thewaltdisneycompany.com",
-    "CAT": "cat.com",
-    "GE": "geaerospace.com",
-    "IBM": "ibm.com",
-    "UBER": "uber.com",
-    "ABNB": "airbnb.com",
-    "PYPL": "paypal.com",
-    "SHOP": "shopify.com",
-    "PLTR": "palantir.com",
-    "PFE": "pfizer.com",
-    "MRK": "merck.com",
-    "GS": "goldmansachs.com",
-    "MS": "morganstanley.com"
+    "AAPL": "apple.com", "MSFT": "microsoft.com", "NVDA": "nvidia.com", "AMZN": "amazon.com",
+    "GOOGL": "google.com", "META": "meta.com", "TSLA": "tesla.com", "BRK-B": "berkshirehathaway.com",
+    "JPM": "jpmorganchase.com", "V": "visa.com", "MA": "mastercard.com", "UNH": "uhc.com",
+    "XOM": "exxonmobil.com", "LLY": "lilly.com", "AVGO": "broadcom.com", "ORCL": "oracle.com",
+    "COST": "costco.com", "WMT": "walmart.com", "HD": "homedepot.com", "PG": "pg.com",
+    "KO": "coca-cola.com", "PEP": "pepsico.com", "ABBV": "abbvie.com", "BAC": "bankofamerica.com",
+    "AMD": "amd.com", "CRM": "salesforce.com", "NFLX": "netflix.com", "ADBE": "adobe.com",
+    "INTC": "intel.com", "QCOM": "qualcomm.com", "CSCO": "cisco.com", "TMO": "thermofisher.com",
+    "MCD": "mcdonalds.com", "NKE": "nike.com", "DIS": "thewaltdisneycompany.com", "CAT": "cat.com",
+    "GE": "geaerospace.com", "IBM": "ibm.com", "UBER": "uber.com", "ABNB": "airbnb.com",
+    "PYPL": "paypal.com", "SHOP": "shopify.com", "PLTR": "palantir.com", "PFE": "pfizer.com",
+    "MRK": "merck.com", "GS": "goldmansachs.com", "MS": "morganstanley.com"
 }
 
 CRYPTO_LOGO_OVERRIDES = {
     "1INCH": "https://assets.coingecko.com/coins/images/13469/large/1inch-token.png",
     "PYTH": "https://assets.coingecko.com/coins/images/31924/large/pyth.png",
     "WIF": "https://assets.coingecko.com/coins/images/33566/large/dogwifhat.jpg",
-    "TAO": "https://assets.coingecko.com/coins/images/28463/large/BitTensor_Logo.png",
-    "ARKM": "https://assets.coingecko.com/coins/images/30929/large/Arkham_Logo.png",
     "BONK": "https://assets.coingecko.com/coins/images/28600/large/bonk.jpg",
     "SEI": "https://assets.coingecko.com/coins/images/28205/large/Sei_Logo_-_Transparent.png",
     "TIA": "https://assets.coingecko.com/coins/images/31967/large/tia.jpg",
@@ -395,17 +313,12 @@ CRYPTO_LOGO_OVERRIDES = {
     "IMX": "https://assets.coingecko.com/coins/images/17233/large/immutableX-symbol-BLK-RGB.png",
     "INJ": "https://assets.coingecko.com/coins/images/12882/large/Secondary_Symbol.png",
     "RUNE": "https://assets.coingecko.com/coins/images/6595/large/RUNE.png",
-    "CFX": "https://assets.coingecko.com/coins/images/13079/large/3vuYMBjT.png",
-    "MINA": "https://assets.coingecko.com/coins/images/15628/large/mina.png",
     "API3": "https://assets.coingecko.com/coins/images/13256/large/api3.jpg",
     "MASK": "https://assets.coingecko.com/coins/images/14051/large/Mask_Network.jpg",
     "TRB": "https://assets.coingecko.com/coins/images/9644/large/Blk_icon_current.png",
-    "CELO": "https://assets.coingecko.com/coins/images/11090/large/InjXBNx9_400x400.jpg",
     "RSR": "https://assets.coingecko.com/coins/images/8365/large/rsr.png",
     "GLM": "https://assets.coingecko.com/coins/images/542/large/Golem_Submark_Positive_RGB.png",
     "ROSE": "https://assets.coingecko.com/coins/images/13162/large/rose.png",
-    "KAS": "https://assets.coingecko.com/coins/images/25760/large/kaspa-icon-exchanges.png",
-    "FLOW": "https://assets.coingecko.com/coins/images/13446/large/flow_logo.png",
     "EGLD": "https://assets.coingecko.com/coins/images/12335/large/Elrond.png",
     "KAVA": "https://assets.coingecko.com/coins/images/9761/large/kava.png",
     "LDO": "https://assets.coingecko.com/coins/images/13573/large/Lido_DAO.png",
@@ -414,7 +327,6 @@ CRYPTO_LOGO_OVERRIDES = {
     "GMX": "https://assets.coingecko.com/coins/images/18323/large/arbit.png",
     "CKB": "https://assets.coingecko.com/coins/images/9566/large/Nervos_White.png",
     "CELR": "https://assets.coingecko.com/coins/images/4379/large/Celr.png",
-
     "APT": "https://assets.coingecko.com/coins/images/26455/large/aptos_round.png",
     "ARB": "https://assets.coingecko.com/coins/images/16547/large/arb.jpg",
     "OP": "https://assets.coingecko.com/coins/images/25244/large/Optimism.png",
@@ -424,8 +336,23 @@ CRYPTO_LOGO_OVERRIDES = {
     "HBAR": "https://assets.coingecko.com/coins/images/3688/large/hbar.png",
     "AXS": "https://assets.coingecko.com/coins/images/13029/large/axie_infinity_logo.png",
     "IOTA": "https://assets.coingecko.com/coins/images/692/large/IOTA_Swirl.png",
-    "WOO": "https://assets.coingecko.com/coins/images/12921/large/WOO_Logotype_RGB_Yellow.png",
-    "OCEAN": "https://assets.coingecko.com/coins/images/3687/large/ocean-protocol-logo.jpg"
+    "OCEAN": "https://assets.coingecko.com/coins/images/3687/large/ocean-protocol-logo.jpg",
+    "NEAR": "https://assets.coingecko.com/coins/images/10365/large/near.jpg",
+    "CELO": "https://assets.coingecko.com/coins/images/11090/large/InjXBNx9_400x400.jpg",
+    "TRUMP": "https://assets.coingecko.com/coins/images/53746/large/trump.png",
+    "BTT": "https://assets.coingecko.com/coins/images/22457/large/btt_logo.png",
+    "LUNC": "https://assets.coingecko.com/coins/images/8284/large/01_LunaClassic_color.png",
+    "HOT": "https://assets.coingecko.com/coins/images/3348/large/Holologo_Profile.png",
+    "XTZ": "https://assets.coingecko.com/coins/images/976/large/Tezos-logo.png",
+    "TON": "https://assets.coingecko.com/coins/images/17980/large/ton_symbol.png",
+    "CRO": "https://assets.coingecko.com/coins/images/7310/large/cypto.png",
+    "PENGU": "https://assets.coingecko.com/coins/images/52622/large/PUDGY_PENGUINS_PENGU_PFP.png",
+    "PUMP": "https://s2.coinmarketcap.com/static/img/coins/128x128/35269.png",
+    "FLOKI": "https://assets.coingecko.com/coins/images/16746/large/PNG_image.png",
+    "STRK": "https://assets.coingecko.com/coins/images/26433/large/starknet.png",
+    "XEC": "https://assets.coingecko.com/coins/images/16646/large/Logo_final-22.png",
+    "THETA": "https://assets.coingecko.com/coins/images/2538/large/theta-token-logo.png",
+    "JASMY": "https://assets.coingecko.com/coins/images/13876/large/JASMY200x200.jpg"
 }
 
 BLOG_POSTS = {
@@ -437,34 +364,6 @@ BLOG_POSTS = {
         <p>AVA Signals combine trend structure, breakout behavior, RSI, MACD, and volatility into a ranked setup engine.</p>
         <h2>What matters most?</h2>
         <p>Start with signal direction, then confidence, then risk/reward. A high confidence signal with poor structure is less useful than a balanced setup with clean levels.</p>
-        <h2>How to use confidence</h2>
-        <p>Confidence is not a guarantee. It is a weighted indication of how aligned AVA sees the setup across multiple technical factors.</p>
-        <h2>Use stops and targets</h2>
-        <p>AVA provides entry, stop, TP1, and TP2 to keep the workflow structured. This reduces emotional trading and random exits.</p>
-        """
-    },
-    "best-crypto-setups-today": {
-        "title": "Best Crypto Setups Today: What AVA Looks For",
-        "description": "A breakdown of how AVA identifies high-conviction crypto trade setups.",
-        "date": "2026-01-18",
-        "body": """
-        <p>Crypto setups tend to move faster and with more volatility than equities. AVA adapts by combining breakout structure with ATR-style risk controls.</p>
-        <h2>Trend first</h2>
-        <p>The strongest crypto setups usually align trend, momentum, and structure. AVA looks for stacked EMAs, RSI momentum, and clean breakouts.</p>
-        <h2>Risk controls</h2>
-        <p>Stops are placed with a volatility-aware model rather than arbitrary percentages. That helps avoid noise while preserving disciplined risk.</p>
-        """
-    },
-    "aapl-vs-nvda-trader-guide": {
-        "title": "AAPL vs NVDA: A Trader's Guide to Two Market Giants",
-        "description": "Compare trading behavior, volatility, and trend structure in Apple and NVIDIA.",
-        "date": "2026-01-24",
-        "body": """
-        <p>AAPL and NVDA are both liquid, widely followed equities, but they behave very differently in trend and volatility regimes.</p>
-        <h2>Apple</h2>
-        <p>Apple often trades with smoother structure and broader institutional participation.</p>
-        <h2>NVIDIA</h2>
-        <p>NVIDIA tends to offer faster momentum swings and stronger breakout behavior, which can reward active traders but also punish poor risk management.</p>
         """
     }
 }
@@ -472,38 +371,38 @@ BLOG_POSTS = {
 SYMBOL_LEARN = {
     "BTC": {
         "title": "Bitcoin (BTC) Trading Guide",
-        "intro": "Bitcoin is the benchmark digital asset and one of the most watched macro-sensitive markets in the world.",
+        "intro": "Bitcoin is the benchmark digital asset.",
         "sections": [
-            ("Why BTC matters", "BTC often acts as the anchor for crypto market sentiment, liquidity, and trend leadership."),
-            ("How traders use BTC", "Traders watch BTC for breakout structure, macro correlation, and risk-on/risk-off behavior."),
-            ("How AVA analyzes BTC", "AVA scores BTC using trend stack, RSI, MACD, breakout logic, and volatility-aware trade construction.")
+            ("Why BTC matters", "BTC often anchors crypto market sentiment."),
+            ("How traders use BTC", "Traders watch BTC for breakouts and macro correlation."),
+            ("How AVA analyzes BTC", "AVA scores BTC using trend, RSI, MACD, and volatility-aware construction.")
         ]
     },
     "ETH": {
         "title": "Ethereum (ETH) Trading Guide",
-        "intro": "Ethereum is a major smart-contract asset and often shows different behavior than Bitcoin during rotation cycles.",
+        "intro": "Ethereum is a major smart-contract asset.",
         "sections": [
-            ("Why ETH matters", "ETH can outperform in risk-on periods and often reflects broader altcoin sentiment."),
-            ("How traders use ETH", "Traders monitor ETH for trend continuation, rotational strength, and support/resistance structure."),
-            ("How AVA analyzes ETH", "AVA weighs momentum, moving averages, and breakout structure to surface ranked ETH setups.")
+            ("Why ETH matters", "ETH often reflects altcoin sentiment."),
+            ("How traders use ETH", "Traders monitor ETH for trend continuation and rotation."),
+            ("How AVA analyzes ETH", "AVA weighs momentum, moving averages, and breakout structure.")
         ]
     },
     "AAPL": {
         "title": "Apple (AAPL) Trading Guide",
-        "intro": "Apple is one of the most important large-cap equities and a core holding for many institutional and retail portfolios.",
+        "intro": "Apple is one of the most important large-cap equities.",
         "sections": [
-            ("Why AAPL matters", "AAPL influences major indices and often reflects broader mega-cap sentiment."),
-            ("How traders use AAPL", "Traders often use AAPL for swing structure, earnings reactions, and sector leadership clues."),
-            ("How AVA analyzes AAPL", "AVA evaluates AAPL using trend alignment, momentum, breakout context, and risk/reward construction.")
+            ("Why AAPL matters", "AAPL influences major indices."),
+            ("How traders use AAPL", "Traders use AAPL for swing structure and earnings reactions."),
+            ("How AVA analyzes AAPL", "AVA evaluates AAPL using trend alignment and risk/reward.")
         ]
     },
     "NVDA": {
         "title": "NVIDIA (NVDA) Trading Guide",
-        "intro": "NVIDIA is a high-volatility, high-attention equity that frequently offers strong momentum opportunities.",
+        "intro": "NVIDIA is a high-volatility, high-attention equity.",
         "sections": [
-            ("Why NVDA matters", "NVDA is closely tied to AI, semis, growth sentiment, and institutional positioning."),
-            ("How traders use NVDA", "Traders watch NVDA for momentum continuation, gap behavior, and rapid trend expansion."),
-            ("How AVA analyzes NVDA", "AVA uses trend stack, momentum signals, MACD, RSI, and breakout logic to classify NVDA setups.")
+            ("Why NVDA matters", "NVDA is tied to AI and growth sentiment."),
+            ("How traders use NVDA", "Traders watch NVDA for momentum continuation and gap behavior."),
+            ("How AVA analyzes NVDA", "AVA uses trend stack, MACD, RSI, and breakout logic.")
         ]
     }
 }
@@ -544,9 +443,11 @@ def get_stock_logo(sym):
 
 def get_crypto_logo(sym):
     s = str(sym).upper()
+
     if s in CRYPTO_LOGO_OVERRIDES:
         return CRYPTO_LOGO_OVERRIDES[s]
-    return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{str(sym).lower()}.png"
+
+    return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{s.lower()}.png"
 
 def get_asset_icon(sym):
     return {"GC=F": "🥇", "SI=F": "🥈", "CL=F": "🛢️"}.get(str(sym).upper(), "📈")
@@ -833,10 +734,8 @@ class Database:
 
     def cache_set(self, key, payload):
         c = self.conn()
-        c.execute(
-            "REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
-            (key, json.dumps(payload), int(time.time()))
-        )
+        c.execute("REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
+                  (key, json.dumps(payload), int(time.time())))
         c.commit()
         c.close()
 
@@ -885,11 +784,7 @@ class Database:
 
         for s in signals:
             active_ids.add(s["signal_id"])
-            row = c.execute(
-                "SELECT * FROM signal_history WHERE signal_id = ? AND outcome = 'OPEN'",
-                (s["signal_id"],)
-            ).fetchone()
-
+            row = c.execute("SELECT * FROM signal_history WHERE signal_id = ? AND outcome = 'OPEN'", (s["signal_id"],)).fetchone()
             if not row:
                 c.execute("""
                     INSERT INTO signal_history (
@@ -907,10 +802,17 @@ class Database:
 
         stale_open = c.execute("SELECT * FROM signal_history WHERE outcome = 'OPEN'").fetchall()
         for row in stale_open:
-            if row["signal_id"] not in active_ids:
+            if row["signal_id"] in active_ids:
+                continue
+
+            expiry_hours = Config.CRYPTO_SIGNAL_EXPIRY_HOURS if row["asset_type"] == "crypto" else Config.STOCK_SIGNAL_EXPIRY_HOURS
+            max_age_seconds = int(expiry_hours * 3600)
+            age_seconds = now - int(row["created_at"])
+
+            if age_seconds >= max_age_seconds:
                 c.execute("""
                     UPDATE signal_history
-                    SET outcome = 'EXPIRED', outcome_note = 'Signal rotated out of active set.', updated_at = ?
+                    SET outcome = 'EXPIRED', outcome_note = 'Signal expired after max tracking window.', updated_at = ?
                     WHERE history_id = ?
                 """, (now, row["history_id"]))
 
@@ -925,12 +827,7 @@ class Database:
 
     def get_open_signal_history(self, limit=200):
         c = self.conn()
-        rows = c.execute("""
-            SELECT * FROM signal_history
-            WHERE outcome = 'OPEN'
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
+        rows = c.execute("SELECT * FROM signal_history WHERE outcome = 'OPEN' ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
         c.close()
         return [dict(r) for r in rows]
 
@@ -948,8 +845,7 @@ class Database:
         c = self.conn()
         cutoff = int(time.time()) - int(cooldown_hours * 3600)
         row = c.execute("""
-            SELECT 1
-            FROM signal_history
+            SELECT 1 FROM signal_history
             WHERE symbol = ? AND asset_type = ? AND created_at >= ?
             LIMIT 1
         """, (str(symbol).upper().strip(), str(asset_type).strip(), cutoff)).fetchone()
@@ -977,11 +873,9 @@ class Database:
         tp2_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='TP2_HIT'").fetchone()["n"]
         stopped_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='STOPPED'").fetchone()["n"]
         ambiguous_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='AMBIGUOUS'").fetchone()["n"]
-
         closed_wins = tp1_n + tp2_n
         closed_total = closed_wins + stopped_n
         win_rate = round((closed_wins / closed_total) * 100, 2) if closed_total > 0 else 0.0
-
         c.close()
         return {
             "total": total,
@@ -1014,10 +908,8 @@ class Database:
 
     def log_email_event(self, email, event_type, meta=None):
         c = self.conn()
-        c.execute(
-            "INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
-            (email.lower().strip(), event_type, json.dumps(meta or {}))
-        )
+        c.execute("INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
+                  (email.lower().strip(), event_type, json.dumps(meta or {})))
         c.commit()
         c.close()
 
@@ -1034,10 +926,8 @@ class Database:
 
     def log_broadcast(self, channel, message_hash):
         c = self.conn()
-        c.execute(
-            "INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
-            (channel, message_hash, int(time.time()))
-        )
+        c.execute("INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
+                  (channel, message_hash, int(time.time())))
         c.commit()
         c.close()
 
@@ -1061,19 +951,15 @@ class Database:
 
     def add_watchlist(self, user_id, symbol, asset_type):
         c = self.conn()
-        c.execute(
-            "INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
-            (user_id, symbol.upper().strip(), asset_type.strip())
-        )
+        c.execute("INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
+                  (user_id, symbol.upper().strip(), asset_type.strip()))
         c.commit()
         c.close()
 
     def remove_watchlist(self, user_id, symbol, asset_type):
         c = self.conn()
-        c.execute(
-            "DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
-            (user_id, symbol.upper().strip(), asset_type.strip())
-        )
+        c.execute("DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
+                  (user_id, symbol.upper().strip(), asset_type.strip()))
         c.commit()
         c.close()
 
@@ -1124,11 +1010,7 @@ class Database:
 
     def get_portfolio_positions(self, user_id):
         c = self.conn()
-        rows = c.execute("""
-            SELECT * FROM portfolio_positions
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-        """, (user_id,)).fetchall()
+        rows = c.execute("SELECT * FROM portfolio_positions WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
         c.close()
         return [dict(r) for r in rows]
 
@@ -1210,11 +1092,12 @@ def set_cached_payload(key, payload):
 
 def perform_crypto_fetch():
     results = []
+
     try:
         r = requests.get("https://api.gateio.ws/api/v4/spot/tickers", timeout=10)
         if r.status_code == 200:
             market_map = {item.get("currency_pair", "").replace("_USDT", ""): item for item in r.json()}
-            for symbol, name in CRYPTO_TOP_90:
+            for symbol, name in CRYPTO_TOP_100:
                 item = market_map.get(symbol)
                 if not item:
                     continue
@@ -1230,7 +1113,8 @@ def perform_crypto_fetch():
                             "dir": "up" if change >= 0 else "down",
                             "signal": compute_light_signal(change),
                             "logo": get_crypto_logo(symbol),
-                            "icon": "₿"
+                            "icon": "₿",
+                            "is_fallback": False
                         })
                 except Exception:
                     continue
@@ -1242,7 +1126,7 @@ def perform_crypto_fetch():
             r = requests.get("https://api.bitget.com/api/v2/spot/market/tickers", timeout=10)
             if r.status_code == 200:
                 market_map = {item.get("symbol", "").replace("USDT", ""): item for item in r.json().get("data", [])}
-                for symbol, name in CRYPTO_TOP_90:
+                for symbol, name in CRYPTO_TOP_100:
                     item = market_map.get(symbol)
                     if not item:
                         continue
@@ -1258,7 +1142,8 @@ def perform_crypto_fetch():
                                 "dir": "up" if change >= 0 else "down",
                                 "signal": compute_light_signal(change),
                                 "logo": get_crypto_logo(symbol),
-                                "icon": "₿"
+                                "icon": "₿",
+                                "is_fallback": False
                             })
                     except Exception:
                         continue
@@ -1266,9 +1151,9 @@ def perform_crypto_fetch():
             logger.warning(f"Bitget fallback failed: {e}")
 
     loaded_symbols = {r["symbol"] for r in results}
-    for symbol, name in CRYPTO_TOP_90:
+    for symbol, name in CRYPTO_TOP_100:
         if symbol not in loaded_symbols:
-            price = random.uniform(0.0001, 500.0) if symbol not in ("BTC", "ETH", "TAO") else random.uniform(1.0, 50000.0)
+            price = random.uniform(0.0001, 500.0) if symbol not in ("BTC", "ETH") else random.uniform(1.0, 50000.0)
             change = random.uniform(-4.0, 4.0)
             results.append({
                 "symbol": symbol,
@@ -1278,10 +1163,11 @@ def perform_crypto_fetch():
                 "dir": "up" if change >= 0 else "down",
                 "signal": compute_light_signal(change),
                 "logo": get_crypto_logo(symbol),
-                "icon": "₿"
+                "icon": "₿",
+                "is_fallback": True
             })
 
-    results = sorted(results, key=lambda x: next((i for i, t in enumerate(CRYPTO_TOP_90) if t[0] == x["symbol"]), 9999))
+    results = sorted(results, key=lambda x: next((i for i, t in enumerate(CRYPTO_TOP_100) if t[0] == x["symbol"]), 9999))
     set_cached_payload("crypto_list", results)
 
 
@@ -1312,7 +1198,8 @@ def perform_stock_fetch():
                             "dir": "up" if change >= 0 else "down",
                             "signal": compute_light_signal(change),
                             "logo": get_stock_logo(symbol),
-                            "icon": get_asset_icon(symbol)
+                            "icon": get_asset_icon(symbol),
+                            "is_fallback": False
                         })
             time.sleep(0.12)
         except Exception:
@@ -1331,7 +1218,8 @@ def perform_stock_fetch():
                 "dir": "up" if change >= 0 else "down",
                 "signal": compute_light_signal(change),
                 "logo": get_stock_logo(symbol),
-                "icon": get_asset_icon(symbol)
+                "icon": get_asset_icon(symbol),
+                "is_fallback": True
             })
 
     results = sorted(results, key=lambda x: next((i for i, t in enumerate(STOCK_UNIVERSE) if t[0] == x["symbol"]), 9999))
@@ -1461,7 +1349,7 @@ def calc_atr_proxy(candles, period=14):
 
 
 def ava_brain_analyze(candles):
-    if len(candles) < 60:
+    if len(candles) < 80:
         return {
             "signal": "HOLD",
             "conf": 50,
@@ -1470,9 +1358,11 @@ def ava_brain_analyze(candles):
             "score": 0
         }
 
-    closes = [c["close"] for c in candles]
-    highs = [c["high"] for c in candles]
-    lows = [c["low"] for c in candles]
+    closes = [float(c["close"]) for c in candles]
+    highs = [float(c["high"]) for c in candles]
+    lows = [float(c["low"]) for c in candles]
+    opens = [float(c["open"]) for c in candles]
+
     current = closes[-1]
     prev_close = closes[-2]
 
@@ -1489,153 +1379,286 @@ def ava_brain_analyze(candles):
     recent_low_10 = min(lows[-10:-1])
     recent_high_20 = max(highs[-20:-1])
     recent_low_20 = min(lows[-20:-1])
+    recent_high_40 = max(highs[-40:-1])
+    recent_low_40 = min(lows[-40:-1])
 
-    score = 0
+    score = 0.0
     reasons = []
-    regime = "Range / Mixed"
+
+    trend_score = 0.0
+    momentum_score = 0.0
+    breakout_score = 0.0
+    volatility_score = 0.0
+    extension_score = 0.0
 
     strong_bull = current > ema9[-1] > ema20[-1] > ema50[-1]
     strong_bear = current < ema9[-1] < ema20[-1] < ema50[-1]
 
+    bull_bias = current > ema20[-1] and current > ema50[-1]
+    bear_bias = current < ema20[-1] and current < ema50[-1]
+
+    ema9_slope_up = ema9[-1] > ema9[-2]
+    ema20_slope_up = ema20[-1] > ema20[-2]
+    ema50_slope_up = ema50[-1] > ema50[-2]
+
+    ema9_slope_down = ema9[-1] < ema9[-2]
+    ema20_slope_down = ema20[-1] < ema20[-2]
+    ema50_slope_down = ema50[-1] < ema50[-2]
+
     if strong_bull:
-        score += 4
-        regime = "Strong Bull Trend"
-        reasons.append("Price is stacked above EMA-9, EMA-20 and EMA-50.")
+        trend_score += 4.0
+        reasons.append("Price is stacked above EMA-9, EMA-20, and EMA-50.")
     elif strong_bear:
-        score -= 4
-        regime = "Strong Bear Trend"
-        reasons.append("Price is stacked below EMA-9, EMA-20 and EMA-50.")
-    elif current > ema20[-1] and current > ema50[-1]:
-        score += 2
-        regime = "Bullish Bias"
-        reasons.append("Price is holding above key moving averages.")
-    elif current < ema20[-1] and current < ema50[-1]:
-        score -= 2
-        regime = "Bearish Bias"
-        reasons.append("Price is holding below key moving averages.")
+        trend_score -= 4.0
+        reasons.append("Price is stacked below EMA-9, EMA-20, and EMA-50.")
+    elif bull_bias:
+        trend_score += 2.0
+        reasons.append("Price is holding above key trend averages.")
+    elif bear_bias:
+        trend_score -= 2.0
+        reasons.append("Price is holding below key trend averages.")
     else:
-        regime = "Range / Mixed"
         reasons.append("Trend structure is mixed.")
 
-    score += 1 if ema9[-1] > ema9[-2] else -1
-    score += 1 if ema20[-1] > ema20[-2] else -1
-    score += 1 if ema50[-1] > ema50[-2] else -1
-    score += 1 if current > sma50[-1] else -1
+    trend_score += 0.7 if ema9_slope_up else -0.7
+    trend_score += 0.9 if ema20_slope_up else -0.9
+    trend_score += 1.1 if ema50_slope_up else -1.1
+    trend_score += 0.8 if current > sma50[-1] else -0.8
 
-    if rsi < 30:
-        score += 2
-        reasons.append("RSI shows oversold rebound potential.")
-    elif rsi > 70:
-        score -= 1
-        reasons.append("RSI is overextended.")
-    elif rsi > 55:
-        score += 1
+    if rsi < 28:
+        momentum_score += 2.2
+        reasons.append("RSI is deeply oversold, increasing rebound potential.")
+    elif rsi < 38:
+        momentum_score += 0.8 if bull_bias else -0.5
+    elif rsi > 72:
+        momentum_score -= 1.6
+        reasons.append("RSI is stretched and may be overextended.")
+    elif rsi > 58:
+        momentum_score += 1.3
         reasons.append("RSI supports bullish momentum.")
-    elif rsi < 45:
-        score -= 1
+    elif rsi < 42:
+        momentum_score -= 1.2
         reasons.append("RSI leans weak.")
 
     if macd_line > macd_signal and macd_hist > 0:
-        score += 2
+        momentum_score += 1.8
         reasons.append("MACD is positive and expanding.")
+    elif macd_line > macd_signal and macd_hist <= 0:
+        momentum_score += 0.5
     elif macd_line < macd_signal and macd_hist < 0:
-        score -= 2
+        momentum_score -= 1.8
         reasons.append("MACD is negative and weakening.")
+    elif macd_line < macd_signal and macd_hist >= 0:
+        momentum_score -= 0.5
 
-    if current > recent_high_10 and current > prev_close:
-        score += 1
+    breakout_up_10 = current > recent_high_10 and current > prev_close
+    breakout_down_10 = current < recent_low_10 and current < prev_close
+    breakout_up_20 = current > recent_high_20
+    breakout_down_20 = current < recent_low_20
+
+    candle_range = max(highs[-1] - lows[-1], 0.000001)
+    body_size = abs(closes[-1] - opens[-1])
+    body_ratio = body_size / candle_range
+
+    if breakout_up_10:
+        breakout_score += 1.0
         reasons.append("Fresh breakout above 10-period resistance.")
-    elif current < recent_low_10 and current < prev_close:
-        score -= 1
+    if breakout_up_20:
+        breakout_score += 1.3
+        reasons.append("Price is clearing 20-period structure highs.")
+    if current > recent_high_40:
+        breakout_score += 1.0
+
+    if breakout_down_10:
+        breakout_score -= 1.0
         reasons.append("Fresh breakdown below 10-period support.")
+    if breakout_down_20:
+        breakout_score -= 1.3
+        reasons.append("Price is losing 20-period structure support.")
+    if current < recent_low_40:
+        breakout_score -= 1.0
 
-    if current > recent_high_20:
-        score += 1
-        reasons.append("Price is above 20-period structure highs.")
-    elif current < recent_low_20:
-        score -= 1
-        reasons.append("Price is below 20-period structure support.")
+    if body_ratio > 0.62:
+        breakout_score += 0.6 if current > opens[-1] else -0.6
+        reasons.append("Latest candle shows strong directional conviction.")
+    elif body_ratio < 0.22:
+        breakout_score -= 0.3 if current > recent_high_20 else 0
+        breakout_score += 0.3 if current < recent_low_20 else 0
 
-    if atr > 0 and (atr / max(current, 0.000001)) > 0.03:
-        reasons.append("Volatility is elevated, increasing both opportunity and risk.")
+    atr_pct = (atr / max(current, 0.000001)) if atr > 0 else 0.0
+    if 0.008 <= atr_pct <= 0.035:
+        volatility_score += 0.7
+        reasons.append("Volatility is active but still tradeable.")
+    elif atr_pct > 0.05:
+        volatility_score -= 0.8
+        reasons.append("Volatility is elevated, increasing execution risk.")
     else:
-        reasons.append("Volatility is controlled and trend-friendly.")
+        volatility_score += 0.2
 
-    # avoid fighting strong primary trend too aggressively
-    if strong_bull and score < 0:
-        score = max(score, -1)
-        reasons.append("Bearish conviction reduced because primary trend remains strongly bullish.")
-    if strong_bear and score > 0:
-        score = min(score, 1)
-        reasons.append("Bullish conviction reduced because primary trend remains strongly bearish.")
+    dist_from_ema20 = (current - ema20[-1]) / max(ema20[-1], 0.000001)
+    if strong_bull and dist_from_ema20 > 0.10:
+        extension_score -= 1.2
+        reasons.append("Price is extended above EMA-20, reducing chase quality.")
+    elif strong_bear and dist_from_ema20 < -0.10:
+        extension_score += 1.2
+        reasons.append("Price is extended below EMA-20, increasing snapback risk.")
+    elif bull_bias and -0.02 <= dist_from_ema20 <= 0.04:
+        extension_score += 0.8
+        reasons.append("Price is near trend support, improving continuation quality.")
+    elif bear_bias and -0.04 <= dist_from_ema20 <= 0.02:
+        extension_score -= 0.8
+        reasons.append("Price is near trend resistance, supporting bearish continuation.")
 
-    sig = "BUY" if score >= 5 else "SELL" if score <= -5 else "HOLD"
-    conf = min(82, max(52, 55 + abs(score) * 3))
+    score = trend_score + momentum_score + breakout_score + volatility_score + extension_score
+
+    regime = "Range / Mixed"
+    if strong_bull and score >= 5:
+        regime = "Strong Bull Trend"
+    elif strong_bear and score <= -5:
+        regime = "Strong Bear Trend"
+    elif bull_bias:
+        regime = "Bullish Bias"
+    elif bear_bias:
+        regime = "Bearish Bias"
+
+    if strong_bull and score < -1.5:
+        score = -1.5
+        reasons.append("Bearish conviction capped because the primary trend is still bullish.")
+    if strong_bear and score > 1.5:
+        score = 1.5
+        reasons.append("Bullish conviction capped because the primary trend is still bearish.")
+
+    if score >= 6.5:
+        sig = "BUY"
+    elif score <= -6.5:
+        sig = "SELL"
+    else:
+        sig = "HOLD"
+
+    conf_raw = 54 + min(abs(score) * 4.2, 28)
+
+    if strong_bull or strong_bear:
+        conf_raw += 3
+    if breakout_up_20 or breakout_down_20:
+        conf_raw += 2
+    if atr_pct > 0.05:
+        conf_raw -= 3
+    if body_ratio > 0.62:
+        conf_raw += 2
+
+    conf = int(max(51, min(91, round(conf_raw))))
+
+    top_reason = []
+    if strong_bull:
+        top_reason.append("Trend structure is firmly bullish.")
+    elif strong_bear:
+        top_reason.append("Trend structure is firmly bearish.")
+    elif bull_bias:
+        top_reason.append("Trend structure leans bullish.")
+    elif bear_bias:
+        top_reason.append("Trend structure leans bearish.")
+    else:
+        top_reason.append("Trend structure is mixed.")
+
+    if macd_line > macd_signal and macd_hist > 0:
+        top_reason.append("Momentum is confirming direction.")
+    elif macd_line < macd_signal and macd_hist < 0:
+        top_reason.append("Momentum is confirming downside pressure.")
+
+    if breakout_up_20:
+        top_reason.append("Price is breaking higher through structure.")
+    elif breakout_down_20:
+        top_reason.append("Price is breaking lower through structure.")
+
+    if atr_pct > 0.05:
+        top_reason.append("Execution risk is elevated due to volatility.")
+
+    final_reason = " ".join(top_reason + reasons[:3])
 
     return {
         "signal": sig,
         "conf": conf,
         "regime": regime,
-        "reason": " ".join(reasons),
-        "score": score
+        "reason": final_reason.strip(),
+        "score": round(score, 2)
     }
 
 
 def build_trade_setup(asset, candles, asset_type):
-    if not candles or len(candles) < 60:
+    if not candles or len(candles) < 80:
         return None
 
     brain = ava_brain_analyze(candles)
     current = float(candles[-1]["close"])
 
-    closes = [c["close"] for c in candles]
+    closes = [float(c["close"]) for c in candles]
+    highs = [float(c["high"]) for c in candles]
+    lows = [float(c["low"]) for c in candles]
+
     ema20 = calc_ema(closes, 20)
     ema50 = calc_ema(closes, 50)
+    atr = calc_atr_proxy(candles, 14)
 
     signal = brain["signal"]
+    score = float(brain.get("score", 0))
     if signal == "HOLD":
         return None
 
-    # avoid shorting clear strong uptrends
-    if signal == "SELL" and len(ema20) >= 2 and len(ema50) >= 2:
-        if current > ema20[-1] and ema20[-1] > ema50[-1]:
-            return None
-
-    # avoid buying clear strong downtrends
-    if signal == "BUY" and len(ema20) >= 2 and len(ema50) >= 2:
+    if signal == "BUY":
         if current < ema20[-1] and ema20[-1] < ema50[-1]:
             return None
+        if score < 6.5:
+            return None
+    elif signal == "SELL":
+        if current > ema20[-1] and ema20[-1] > ema50[-1]:
+            return None
+        if score > -6.5:
+            return None
 
-    confidence = min(82, max(52, int(brain["conf"])))
+    confidence = int(min(91, max(51, brain["conf"])))
 
     atr_floor = current * (0.012 if asset_type == "stock" else 0.008)
-    atr = max(calc_atr_proxy(candles, 14), atr_floor)
+    atr = max(atr, atr_floor)
 
-    highs = [c["high"] for c in candles[-20:]]
-    lows = [c["low"] for c in candles[-20:]]
-    recent_high = max(highs)
-    recent_low = min(lows)
+    recent_high = max(highs[-20:])
+    recent_low = min(lows[-20:])
 
-    stop_mult = 2.2 if asset_type == "stock" else 1.4
+    stop_mult = 2.0 if asset_type == "stock" else 1.35
+    tp1_mult = 1.7
+    tp2_mult = 2.9
 
     if signal == "BUY":
         entry = current
         stop = max(current - atr * stop_mult, recent_low * 0.985)
         if stop >= entry:
-            stop = current - atr * max(1.8, stop_mult)
+            stop = current - atr * 1.8
         risk = max(entry - stop, 0.000001)
-        tp1 = entry + risk * 1.8
-        tp2 = entry + risk * 3.0
+        tp1 = entry + risk * tp1_mult
+        tp2 = entry + risk * tp2_mult
         rr = (tp1 - entry) / risk
+
+        breakout_filter = current >= max(closes[-5:])
+        support_filter = current >= ema20[-1] * 0.985
+        if not (breakout_filter or support_filter):
+            return None
+
     else:
         entry = current
         stop = min(current + atr * stop_mult, recent_high * 1.015)
         if stop <= entry:
-            stop = current + atr * max(1.8, stop_mult)
+            stop = current + atr * 1.8
         risk = max(stop - entry, 0.000001)
-        tp1 = entry - risk * 1.8
-        tp2 = entry - risk * 3.0
+        tp1 = entry - risk * tp1_mult
+        tp2 = entry - risk * tp2_mult
         rr = (entry - tp1) / risk
+
+        breakdown_filter = current <= min(closes[-5:])
+        resistance_filter = current <= ema20[-1] * 1.015
+        if not (breakdown_filter or resistance_filter):
+            return None
+
+    if rr < Config.SIGNAL_MIN_RR:
+        return None
 
     signal_ts = candles[-1].get("ts") or int(time.time())
 
@@ -1661,19 +1684,21 @@ def build_trade_setup(asset, candles, asset_type):
 def generate_active_signals():
     signals = []
 
-    for asset in fetch_crypto_quotes_safe()[:60]:
+    for asset in fetch_crypto_quotes_safe()[:70]:
+        if asset.get("is_fallback"):
+            continue
         if db.was_recent_signal(asset["symbol"], "crypto", cooldown_hours=24):
             continue
-
         candles = fetch_crypto_candles(asset["symbol"], 120)
         setup = build_trade_setup(asset, candles, "crypto")
         if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
             signals.append(setup)
 
     for asset in fetch_stock_quotes_safe()[:50]:
+        if asset.get("is_fallback"):
+            continue
         if db.was_recent_signal(asset["symbol"], "stock", cooldown_hours=72):
             continue
-
         candles = fetch_stock_candles(asset["symbol"])
         setup = build_trade_setup(asset, candles, "stock")
         if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
@@ -1727,7 +1752,6 @@ def evaluate_signal_history_outcomes():
                     outcome = "STOPPED"
                     note = "Candle low hit stop."
                     break
-
             else:
                 hit_stop = c["high"] >= stop
                 hit_tp1 = c["low"] <= tp1
@@ -1767,6 +1791,9 @@ def get_confidence_accuracy_breakdown():
     for r in rows:
         conf = int(r.get("confidence", 0))
         outcome = str(r.get("outcome", "OPEN"))
+
+        if outcome not in ("TP1_HIT", "TP2_HIT", "STOPPED", "AMBIGUOUS"):
+            continue
 
         if conf < 60:
             bucket = "50-59"
@@ -1993,6 +2020,7 @@ def top_signal_cards_html(signals, blurred=False):
           </div>
         </div>
         """
+
     fallback_html = '<p class="muted">No active signals yet.</p>'
     if not blurred:
         return f"<div class='grid-3'>{cards or fallback_html}</div>"
@@ -2047,34 +2075,33 @@ def nav_layout(title, content, description="AVA Markets - AI market intelligence
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
   <meta name="description" content="{{ description }}">
-  <meta name="google-site-verification" content="39xa6RndNqbrq7XCh_9JZQkWBoRKAJlghz8ieHcV2v4" />
   <style>{{ css }}</style>
 </head>
-    <body>
-      <div class="container">
-        <nav class="nav">
-          <div class="logo"><a href="/">AVA Markets</a></div>
-          <div class="nav-links">
-            <a href="/">Home</a>
-            <a href="/crypto">Crypto</a>
-            <a href="/stocks">Stocks</a>
-            <a href="/signals">Signals</a>
-            <a href="/trends">Trends</a>
-            <a href="/forecasts">Forecasts</a>
-            <a href="/hot">HOT</a>
-            <a href="/history">History</a>
-            <a href="/portfolio">Portfolio</a>
-            <a href="/blog">Blog</a>
-            <a href="/pricing">Pricing</a>
-            {{ admin_link|safe }}
-            {{ user_nav|safe }}
-          </div>
-        </nav>
-        {{ content|safe }}
-        {{ footer|safe }}
+<body>
+  <div class="container">
+    <nav class="nav">
+      <div class="logo"><a href="/">AVA Markets</a></div>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/crypto">Crypto</a>
+        <a href="/stocks">Stocks</a>
+        <a href="/signals">Signals</a>
+        <a href="/trends">Trends</a>
+        <a href="/forecasts">Forecasts</a>
+        <a href="/hot">HOT</a>
+        <a href="/history">History</a>
+        <a href="/portfolio">Portfolio</a>
+        <a href="/blog">Blog</a>
+        <a href="/pricing">Pricing</a>
+        {{ admin_link|safe }}
+        {{ user_nav|safe }}
       </div>
-    </body>
-    </html>
+    </nav>
+    {{ content|safe }}
+    {{ footer|safe }}
+  </div>
+</body>
+</html>
     """, title=title, description=description, css=CSS, content=content, user_nav=user_nav, admin_link=admin_link, footer=render_footer())
 
 
@@ -2210,7 +2237,7 @@ def get_hot_assets():
 def build_forecasts():
     forecasts = []
 
-    for asset in fetch_crypto_quotes_safe()[:12]:
+    for asset in fetch_crypto_quotes_safe()[:15]:
         candles = fetch_crypto_candles(asset["symbol"], 100)
         if not candles:
             continue
@@ -2247,7 +2274,7 @@ def build_forecasts():
     forecasts.sort(key=lambda x: int(x["confidence"]), reverse=True)
     return forecasts[:20]
 
-    @app.route("/api/live/crypto-list")
+@app.route("/api/live/crypto-list")
 def api_live_crypto():
     assets = fetch_crypto_quotes_safe()
     items = [{
@@ -2257,7 +2284,10 @@ def api_live_crypto():
         "dir": a.get("dir", "down"),
         "signal": a.get("signal", "HOLD")
     } for a in assets]
-    return jsonify({"updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "items": items})
+    return jsonify({
+        "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        "items": items
+    })
 
 
 @app.route("/api/live/stocks-list")
@@ -2270,7 +2300,10 @@ def api_live_stocks():
         "dir": a.get("dir", "down"),
         "signal": a.get("signal", "HOLD")
     } for a in assets]
-    return jsonify({"updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "items": items})
+    return jsonify({
+        "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        "items": items
+    })
 
 
 @app.route("/")
@@ -2280,10 +2313,10 @@ def home():
     user_count = db.get_user_count()
     subs = db.get_subscriber_count()
 
-    if g.user and g.user.get("tier") in ("pro", "elite"):
-        signals_section = top_signal_cards_html(signals[:3], blurred=False)
-    else:
-        signals_section = top_signal_cards_html(signals[:3], blurred=True)
+    signals_section = top_signal_cards_html(
+        signals[:3],
+        blurred=not (g.user and g.user.get("tier") in ("pro", "elite"))
+    )
 
     content = f"""
     <section class="hero">
@@ -2312,51 +2345,6 @@ def home():
         <h2>Premium AVA Trade Feed</h2>
         <p>Highest conviction setups ranked by confidence and risk/reward.</p>
         {signals_section}
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="grid-3">
-        <div class="card">
-          <div class="badge">Live Scan</div>
-          <h3>Crypto + Stocks + Commodities</h3>
-          <p>Track liquid assets across digital and traditional markets from one dashboard.</p>
-        </div>
-        <div class="card">
-          <div class="badge">Portfolio Intelligence</div>
-          <h3>See exposure clearly</h3>
-          <p>Track total value, allocation, unrealized PnL, and your top winners and losers.</p>
-        </div>
-        <div class="card">
-          <div class="badge">Forecast Engine</div>
-          <h3>AVA Super Sharp</h3>
-          <p>Use Trends, HOT, and Forecasts to see what AVA thinks matters right now.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="grid-3">
-        <div class="price-card">
-          <div class="pill">Free</div>
-          <div class="price">$0</div>
-          <p>Market dashboards, light signals, blog content, and premium previews.</p>
-          <a class="btn btn-secondary" style="width:100%;" href="/register">Start Free</a>
-        </div>
-
-        <div class="price-card featured">
-          <div class="pill" style="background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.2);color:#bae6fd;">Most Popular</div>
-          <div class="price">$15<span class="small">/mo</span></div>
-          <p>Full active signals, detail pages, signal history, tracked outcomes and premium workflow tools.</p>
-          <a class="btn btn-primary" style="width:100%;margin-top:10px;" href="/pricing">Get Pro</a>
-        </div>
-
-        <div class="price-card">
-          <div class="pill" style="background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.24);color:#fde68a;">Elite</div>
-          <div class="price">$35<span class="small">/mo</span></div>
-          <p>Everything in Pro plus premium alert-ready workflow and hottest conviction feeds.</p>
-          <a class="btn btn-secondary" style="width:100%;margin-top:10px;" href="/pricing">Go Elite</a>
-        </div>
       </div>
     </section>
     """
@@ -2736,61 +2724,73 @@ def billing():
 def pricing():
     content = """
     <section class="section">
-      <div style="text-align:center; margin-bottom:34px;">
+      <div style="text-align:center; margin-bottom:50px;">
         <div class="badge">Simple Monthly Pricing</div>
-        <h1>Choose your AVA plan</h1>
-        <p>Start free. Upgrade when you want ranked active signals, tracked history, portfolio tools, and premium workflow features.</p>
+        <h1 style="max-width:720px;margin:0 auto 20px;">Choose your AVA plan</h1>
+        <p class="hero-sub" style="margin:0 auto 30px;max-width:680px;">
+          Start free. Upgrade for ranked signals, exact trade levels, portfolio tracking, and high-conviction setups.
+        </p>
       </div>
 
       <div class="grid-3" style="align-items:stretch;">
+
         <div class="price-card">
           <div class="pill">Free</div>
-          <div class="price">$0</div>
-          <p>For curious users and light scanners.</p>
-          <ul style="line-height:2; color:var(--text);">
-            <li>Crypto + stock dashboards</li>
-            <li>Basic list signals</li>
-            <li>Blog and learning pages</li>
-            <li>Portfolio tracking</li>
+          <div class="price">Free</div>
+          <p style="margin:20px 0 30px;">Explore AVA and scan the markets with no commitment.</p>
+          <ul style="text-align:left; margin:0 0 30px 20px; line-height:1.8;">
+            <li>✅ Basic market scanner</li>
+            <li>✅ Limited signal access</li>
+            <li>✅ Public market pages</li>
+            <li>❌ Full ranked trade setups</li>
+            <li>❌ Portfolio tools</li>
+            <li>❌ Premium signal intelligence</li>
           </ul>
-          <a href="/register" class="btn btn-secondary" style="width:100%;">Start Free</a>
+          <a href="/register" class="btn btn-secondary" style="width:100%;">Get Started Free</a>
         </div>
 
         <div class="price-card featured">
           <div class="pill" style="background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.22);color:#bae6fd;">Most Popular</div>
           <div class="price">$15<span class="small">/mo</span></div>
-          <p>Best for most traders who want real AVA workflow value.</p>
-          <ul style="line-height:2; color:var(--text);">
-            <li>Active Signal Trades</li>
-            <li>AVA Brain detail pages</li>
-            <li>Signal history + win-rate</li>
-            <li>Portfolio + premium workflow</li>
-            <li>Trends + Forecasts</li>
+          <p style="margin:20px 0 30px;">For traders who want full AVA signals and a smarter workflow.</p>
+          <ul style="text-align:left; margin:0 0 30px 20px; line-height:1.8;">
+            <li>✅ Full AVA signals with entries, stops, and targets</li>
+            <li>✅ Confidence scoring and market regime analysis</li>
+            <li>✅ Portfolio tracker and watchlist tools</li>
+            <li>✅ Trends, forecasts, and signal history</li>
+            <li>✅ Premium access to crypto and stock detail pages</li>
           </ul>
           <form action="/checkout/pro_monthly" method="POST">
-            <button type="submit" class="btn btn-primary" style="width:100%;">Get Pro Monthly</button>
+            <button type="submit" class="btn btn-primary" style="width:100%;">Subscribe for $15/month</button>
           </form>
         </div>
 
         <div class="price-card">
-          <div class="pill" style="background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.22);color:#fde68a;">Power Users</div>
-          <div class="price">$35<span class="small">/mo</span></div>
-          <p>For advanced users wanting sharper market intelligence and premium workflow expansion.</p>
-          <ul style="line-height:2; color:var(--text);">
-            <li>Everything in Pro</li>
-            <li>HOT feed</li>
-            <li>Elite Forecasts</li>
-            <li>Telegram / Discord alert-ready workflow</li>
-            <li>Highest conviction market view</li>
+          <div class="pill" style="background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.22);color:#fde68a;">Elite</div>
+          <div class="price">$29<span class="small">/mo</span></div>
+          <p style="margin:20px 0 30px;">For active traders who want AVA’s highest-conviction setups.</p>
+          <ul style="text-align:left; margin:0 0 30px 20px; line-height:1.8;">
+            <li>✅ Everything in Pro</li>
+            <li>✅ HOT Feed with top-ranked setups</li>
+            <li>✅ Premium access to AVA’s strongest opportunities</li>
+            <li>✅ Expanded workflow for active traders</li>
+            <li>✅ Elite-tier feature access as AVA grows</li>
           </ul>
           <form action="/checkout/elite_monthly" method="POST">
-            <button type="submit" class="btn btn-secondary" style="width:100%;">Get Elite Monthly</button>
+            <button type="submit" class="btn btn-secondary" style="width:100%;">Subscribe for $29/month</button>
           </form>
         </div>
+
+      </div>
+
+      <div style="text-align:center;margin-top:60px;">
+        <p class="small" style="color:var(--muted);">
+          Cancel anytime. No contracts. Paid plans unlock premium AVA workflow features instantly after checkout.
+        </p>
       </div>
     </section>
     """
-    return nav_layout("Pricing - AVA", content)
+    return nav_layout("Pricing - AVA Markets", content)
 
 
 @app.route("/checkout/<plan_key>", methods=["POST"])
@@ -2847,11 +2847,6 @@ def signals():
     <section class="section">
       <div class="badge">AVA Super Brain</div>
       <h1>Active Signal Trades</h1>
-      <div class="btns" style="margin-bottom:20px;">
-        <a class="btn btn-secondary" href="/signals">All</a>
-        <a class="btn btn-secondary" href="/signals?type=crypto">Crypto</a>
-        <a class="btn btn-secondary" href="/signals?type=stock">Stocks</a>
-      </div>
       <div class="table-shell">
         <table class="market-table">
           <tr>
@@ -2901,8 +2896,6 @@ def trends():
     <section class="section">
       <div class="badge">AVA Trends</div>
       <h1>Market Trends</h1>
-      <p>Live strongest gainers and losers across crypto, stocks, and commodities.</p>
-
       <div class="grid-2">
         <div class="card">
           <h3>Top Gainers</h3>
@@ -2953,7 +2946,6 @@ def hot():
     <section class="section">
       <div class="badge">AVA HOT Feed</div>
       <h1>HOT Setups</h1>
-      <p>Elite-only feed of the sharpest AVA-ranked setups with strongest confidence and structure.</p>
       <div class="table-shell">
         <table class="market-table">
           <tr><th>Asset</th><th>Type</th><th>Signal</th><th>Confidence</th><th>Entry</th><th>TP1</th><th>R:R</th></tr>
@@ -2995,7 +2987,6 @@ def forecasts():
     <section class="section">
       <div class="badge">AVA Forecast Engine</div>
       <h1>Forecasts</h1>
-      <p>AVA Super Sharp directional analysis across crypto, stocks, and commodities.</p>
       <div class="grid-2">
         {cards or "<p>No forecasts available yet.</p>"}
       </div>
@@ -3008,6 +2999,11 @@ def forecasts():
 def history():
     stats = db.get_signal_stats()
     confidence_rows = get_confidence_accuracy_breakdown()
+
+    all_history = db.get_signal_history(limit=400)
+    resolved_history = [r for r in all_history if r.get("outcome") in ("TP1_HIT", "TP2_HIT", "STOPPED", "AMBIGUOUS")]
+    expired_history = [r for r in all_history if r.get("outcome") == "EXPIRED"]
+
     confidence_html = ""
     for row in confidence_rows:
         confidence_html += f"""
@@ -3020,28 +3016,9 @@ def history():
         </tr>
         """
 
-    if not g.user or g.user.get("tier", "free") == "free":
-        content = f"""
-        <section class="section">
-          <div class="badge">Premium History</div>
-          <h1>Signal History & Win Rate</h1>
-          <div class="grid-4" style="margin-bottom:20px;">
-            <div class="kpi"><div class="num">{stats['total']}</div><div class="label">Signals Logged</div></div>
-            <div class="kpi"><div class="num">{stats['open']}</div><div class="label">Open</div></div>
-            <div class="kpi"><div class="num">{stats['tp1_hit'] + stats['tp2_hit']}</div><div class="label">Tracked Wins</div></div>
-            <div class="kpi"><div class="num">{stats['win_rate']}%</div><div class="label">Win Rate</div></div>
-          </div>
-          <div class="card">
-            <p>Unlock the full signal history table, performance tracking, and detailed trade outcomes with Pro.</p>
-            <a href="/pricing" class="btn btn-primary">Unlock Pro</a>
-          </div>
-        </section>
-        """
-        return nav_layout("History - AVA", content)
-
-    rows = ""
-    for r in db.get_signal_history(limit=120):
-        rows += f"""
+    resolved_rows = ""
+    for r in resolved_history[:120]:
+        resolved_rows += f"""
         <tr>
           <td><strong>{h(r['symbol'])}</strong><div class="small">{h(r['name'])}</div></td>
           <td>{h(r['asset_type'].upper())}</td>
@@ -3054,22 +3031,44 @@ def history():
         </tr>
         """
 
+    expired_rows = ""
+    for r in expired_history[:40]:
+        expired_rows += f"""
+        <tr>
+          <td><strong>{h(r['symbol'])}</strong><div class="small">{h(r['name'])}</div></td>
+          <td>{h(r['asset_type'].upper())}</td>
+          <td><span class="signal signal-{h(r['signal'].lower())}">{h(r['signal'])}</span></td>
+          <td>{int(r['confidence'])}%</td>
+          <td>{fmt_price(r['entry_price'])}</td>
+          <td>{fmt_price(r['take_profit_1'])}</td>
+          <td>{fmt_price(r['take_profit_2'])}</td>
+          <td>{h(r['outcome'])}</td>
+        </tr>
+        """
+
+    resolved_count = len(resolved_history)
+    expired_count = len(expired_history)
+
     content = f"""
     <section class="section">
       <div class="badge">Performance Transparency</div>
       <h1>Signal History & Win Rate</h1>
       <div class="grid-4" style="margin-bottom:20px;">
         <div class="kpi"><div class="num">{stats['total']}</div><div class="label">Signals Logged</div></div>
-        <div class="kpi"><div class="num">{stats['open']}</div><div class="label">Open</div></div>
+        <div class="kpi"><div class="num">{resolved_count}</div><div class="label">Resolved Trades</div></div>
         <div class="kpi"><div class="num">{stats['tp1_hit'] + stats['tp2_hit']}</div><div class="label">Tracked Wins</div></div>
         <div class="kpi"><div class="num">{stats['win_rate']}%</div><div class="label">Win Rate</div></div>
       </div>
 
-      <div class="table-shell">
-        <table class="market-table">
-          <tr><th>Asset</th><th>Type</th><th>Signal</th><th>Confidence</th><th>Entry</th><th>TP1</th><th>TP2</th><th>Outcome</th></tr>
-          {rows or "<tr><td colspan='8'>No signal history yet.</td></tr>"}
-        </table>
+      <div class="card" style="margin-bottom:24px;">
+        <h3>Resolved Trade Outcomes</h3>
+        <p class="small">Only resolved trades are used for accuracy tracking below. Expired trades are shown separately.</p>
+        <div class="table-shell">
+          <table class="market-table">
+            <tr><th>Asset</th><th>Type</th><th>Signal</th><th>Confidence</th><th>Entry</th><th>TP1</th><th>TP2</th><th>Outcome</th></tr>
+            {resolved_rows or "<tr><td colspan='8'>No resolved trades yet.</td></tr>"}
+          </table>
+        </div>
       </div>
 
       <div class="card" style="margin-top:24px;">
@@ -3078,6 +3077,17 @@ def history():
           <table class="market-table">
             <tr><th>Confidence</th><th>Wins</th><th>Losses</th><th>Ambiguous</th><th>Accuracy</th></tr>
             {confidence_html or "<tr><td colspan='5'>No confidence accuracy data yet.</td></tr>"}
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:24px;">
+        <h3>Expired / Unresolved Signals</h3>
+        <p class="small">{expired_count} expired signals tracked separately so they do not pollute the accuracy buckets.</p>
+        <div class="table-shell">
+          <table class="market-table">
+            <tr><th>Asset</th><th>Type</th><th>Signal</th><th>Confidence</th><th>Entry</th><th>TP1</th><th>TP2</th><th>Outcome</th></tr>
+            {expired_rows or "<tr><td colspan='8'>No expired signals.</td></tr>"}
           </table>
         </div>
       </div>
@@ -3120,8 +3130,7 @@ def crypto():
     content = f"""
     <section class="section">
       <div class="badge">Live Crypto Scanner</div>
-      <h1>100 Crypto Assets</h1>
-      <p>Live crypto dashboard with broad coverage, AVA list signals, and fallback-filled market coverage.</p>
+      <h1>Live Crypto</h1>
       <div id="live-updated" class="small" style="margin-bottom:20px;">Last updated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC</div>
       <div class="table-shell">
         <table class="market-table">
@@ -3171,8 +3180,7 @@ def stocks():
     content = f"""
     <section class="section">
       <div class="badge">Premium Equity Scanner</div>
-      <h1>50 Stocks & Commodities</h1>
-      <p>Institutional-style watchlist covering mega-cap equities, sector leaders, and macro commodity proxies.</p>
+      <h1>Live Stocks</h1>
       <div id="live-updated" class="small" style="margin-bottom:20px;">Last updated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC</div>
       <div class="table-shell">
         <table class="market-table">
@@ -3262,59 +3270,6 @@ def stock_detail(symbol):
     return nav_layout(f"{symbol} Signal Analysis - AVA", content)
 
 
-@app.route("/landing/<symbol>")
-def landing_symbol(symbol):
-    symbol = symbol.upper()
-
-    if symbol in ("BTC", "ETH"):
-        asset = next((a for a in fetch_crypto_quotes_safe() if a["symbol"] == symbol), None)
-        if not asset:
-            abort(404)
-        content = f"""
-        <section class="section">
-          <div class="badge">Market Landing Page</div>
-          <h1>{h(asset['name'])} ({h(symbol)}) Signals, Price, and AVA Guide</h1>
-          <p>Track live price, AVA signal direction, and unlock premium trade setups for {h(asset['name'])}.</p>
-          <div class="card">
-            <h3>Live Snapshot</h3>
-            <p>Price: <strong>{fmt_price(asset['price'])}</strong></p>
-            <p>Change: <strong class="{asset['dir']}">{fmt_change(asset['change'])}</strong></p>
-            <p>Signal: <span class="signal signal-{asset['signal'].lower()}">{asset['signal']}</span></p>
-            <div class="btns">
-              <a href="/learn/{h(symbol.lower())}" class="btn btn-secondary">Learn {h(symbol)}</a>
-              <a href="/crypto/{h(symbol)}" class="btn btn-primary">Open Premium Detail</a>
-            </div>
-          </div>
-        </section>
-        """
-        return nav_layout(f"{symbol} Price and Signals - AVA", content)
-
-    if symbol in ("AAPL", "NVDA"):
-        asset = next((a for a in fetch_stock_quotes_safe() if a["symbol"] == symbol), None)
-        if not asset:
-            abort(404)
-        content = f"""
-        <section class="section">
-          <div class="badge">Market Landing Page</div>
-          <h1>{h(asset['name'])} ({h(symbol)}) Signals, Price, and AVA Guide</h1>
-          <p>Track live price, AVA signal direction, and unlock premium trade setups for {h(asset['name'])}.</p>
-          <div class="card">
-            <h3>Live Snapshot</h3>
-            <p>Price: <strong>{fmt_price(asset['price'])}</strong></p>
-            <p>Change: <strong class="{asset['dir']}">{fmt_change(asset['change'])}</strong></p>
-            <p>Signal: <span class="signal signal-{asset['signal'].lower()}">{asset['signal']}</span></p>
-            <div class="btns">
-              <a href="/learn/{h(symbol.lower())}" class="btn btn-secondary">Learn {h(symbol)}</a>
-              <a href="/stocks/{h(symbol)}" class="btn btn-primary">Open Premium Detail</a>
-            </div>
-          </div>
-        </section>
-        """
-        return nav_layout(f"{symbol} Price and Signals - AVA", content)
-
-    abort(404)
-
-
 @app.route("/learn/<symbol>")
 def learn_symbol(symbol):
     symbol = symbol.upper()
@@ -3335,7 +3290,6 @@ def learn_symbol(symbol):
         {sections_html}
         <div class="hr"></div>
         <div class="btns">
-          <a href="/landing/{h(symbol)}" class="btn btn-secondary">Open {h(symbol)} Landing Page</a>
           <a href="/pricing" class="btn btn-primary">Unlock Premium Signals</a>
         </div>
       </div>
@@ -3360,7 +3314,6 @@ def blog():
     <section class="section">
       <div class="badge">SEO Content Engine</div>
       <h1>AVA Blog & Research</h1>
-      <p>Learn how AVA signals work, how to think about crypto and stocks, and how to build cleaner trading workflows.</p>
       <div class="grid-3">
         {cards}
       </div>
@@ -3381,11 +3334,6 @@ def blog_post(slug):
       <div class="small" style="margin-bottom:18px;">{h(post['date'])}</div>
       <div class="card">
         {post['body']}
-        <div class="hr"></div>
-        <div class="btns">
-          <a href="/signals" class="btn btn-secondary">View Signals</a>
-          <a href="/pricing" class="btn btn-primary">Unlock Pro</a>
-        </div>
       </div>
     </section>
     """
@@ -3440,7 +3388,6 @@ def admin():
             <button class="btn btn-primary" type="submit">Broadcast Top Signals</button>
           </form>
         </div>
-
         <div class="card">
           <h3>History Controls</h3>
           <p class="small">Marks prior trade outcomes as legacy-invalid after engine correction.</p>
@@ -3515,13 +3462,7 @@ def stripe_webhook():
         uid = obj.get("client_reference_id")
         md = obj.get("metadata", {}) or {}
         if uid:
-            db.upgrade_user(
-                int(uid),
-                md.get("tier", "pro"),
-                obj.get("customer"),
-                obj.get("subscription"),
-                md.get("billing", "monthly")
-            )
+            db.upgrade_user(int(uid), md.get("tier", "pro"), obj.get("customer"), obj.get("subscription"), md.get("billing", "monthly"))
 
     if event.get("type") == "customer.subscription.deleted":
         obj = event.get("data", {}).get("object", {})
@@ -3570,6 +3511,7 @@ def start_background_loop():
 
 if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not Config.DEBUG:
     start_background_loop()
+
 
 if __name__ == "__main__":
     app.run(host=Config.HOST, port=Config.PORT, debug=Config.DEBUG)
