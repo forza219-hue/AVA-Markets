@@ -74,8 +74,8 @@ class Config:
     PAGE_SIZE_CRYPTO = 100
     PAGE_SIZE_STOCKS = 100
 
-    SIGNAL_MIN_CONFIDENCE = int(os.environ.get("SIGNAL_MIN_CONFIDENCE", 68))
-    SIGNAL_MIN_RR = float(os.environ.get("SIGNAL_MIN_RR", 1.2))
+    SIGNAL_MIN_CONFIDENCE = 70
+    SIGNAL_MIN_RR = 1.2
 
     CRYPTO_SIGNAL_EXPIRY_HOURS = int(os.environ.get("CRYPTO_SIGNAL_EXPIRY_HOURS", 48))
     STOCK_SIGNAL_EXPIRY_HOURS = int(os.environ.get("STOCK_SIGNAL_EXPIRY_HOURS", 240))
@@ -411,7 +411,6 @@ SYMBOL_LEARN = {
 def h(v):
     return html.escape("" if v is None else str(v), quote=True)
 
-
 def fmt_price(v, sym=None):
     try:
         vf = float(v)
@@ -419,17 +418,14 @@ def fmt_price(v, sym=None):
     except Exception:
         return "$0.00"
 
-
 def fmt_change(v):
     try:
         return f"{float(v):+.2f}%"
     except Exception:
         return "+0.00%"
 
-
 def pct_change(price, prev):
     return 0.0 if prev in [0, None] else ((price - prev) / prev) * 100.0
-
 
 def compute_light_signal(c):
     try:
@@ -438,26 +434,23 @@ def compute_light_signal(c):
         c = 0.0
     return "BUY" if c >= 0.8 else "SELL" if c <= -0.8 else "HOLD"
 
-
 def normalize_symbol_id(sym):
     return str(sym).replace("=", "_").replace("-", "_").replace("/", "_")
-
 
 def get_stock_logo(sym):
     d = STOCK_DOMAINS.get(str(sym).upper())
     return f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{d}&size=128" if d else ""
 
-
 def get_crypto_logo(sym):
     s = str(sym).upper()
+
     if s in CRYPTO_LOGO_OVERRIDES:
         return CRYPTO_LOGO_OVERRIDES[s]
-    return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{s.lower()}.png"
 
+    return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{s.lower()}.png"
 
 def get_asset_icon(sym):
     return {"GC=F": "🥇", "SI=F": "🥈", "CL=F": "🛢️"}.get(str(sym).upper(), "📈")
-
 
 def paginate(items, page, per_page):
     if not items:
@@ -467,7 +460,6 @@ def paginate(items, page, per_page):
     page = max(1, min(page, pages))
     start = (page - 1) * per_page
     return items[start:start + per_page], total, pages, page
-
 
 def render_pagination(base_url, current, pages):
     if pages <= 1:
@@ -742,10 +734,8 @@ class Database:
 
     def cache_set(self, key, payload):
         c = self.conn()
-        c.execute(
-            "REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
-            (key, json.dumps(payload), int(time.time()))
-        )
+        c.execute("REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
+                  (key, json.dumps(payload), int(time.time())))
         c.commit()
         c.close()
 
@@ -794,10 +784,7 @@ class Database:
 
         for s in signals:
             active_ids.add(s["signal_id"])
-            row = c.execute(
-                "SELECT * FROM signal_history WHERE signal_id = ? AND outcome = 'OPEN'",
-                (s["signal_id"],)
-            ).fetchone()
+            row = c.execute("SELECT * FROM signal_history WHERE signal_id = ? AND outcome = 'OPEN'", (s["signal_id"],)).fetchone()
             if not row:
                 c.execute("""
                     INSERT INTO signal_history (
@@ -811,11 +798,7 @@ class Database:
                     s["take_profit_1"], s["take_profit_2"], s["risk_reward"], now, now
                 ))
             else:
-                c.execute("""
-                    UPDATE signal_history
-                    SET updated_at = ?, confidence = ?, risk_reward = ?
-                    WHERE history_id = ?
-                """, (now, s["confidence"], s["risk_reward"], row["history_id"]))
+                c.execute("UPDATE signal_history SET updated_at = ? WHERE history_id = ?", (now, row["history_id"]))
 
         stale_open = c.execute("SELECT * FROM signal_history WHERE outcome = 'OPEN'").fetchall()
         for row in stale_open:
@@ -863,7 +846,7 @@ class Database:
         cutoff = int(time.time()) - int(cooldown_hours * 3600)
         row = c.execute("""
             SELECT 1 FROM signal_history
-            WHERE symbol = ? AND asset_type = ? AND created_at >= ? AND outcome = 'OPEN'
+            WHERE symbol = ? AND asset_type = ? AND created_at >= ?
             LIMIT 1
         """, (str(symbol).upper().strip(), str(asset_type).strip(), cutoff)).fetchone()
         c.close()
@@ -925,10 +908,8 @@ class Database:
 
     def log_email_event(self, email, event_type, meta=None):
         c = self.conn()
-        c.execute(
-            "INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
-            (email.lower().strip(), event_type, json.dumps(meta or {}))
-        )
+        c.execute("INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
+                  (email.lower().strip(), event_type, json.dumps(meta or {})))
         c.commit()
         c.close()
 
@@ -945,10 +926,8 @@ class Database:
 
     def log_broadcast(self, channel, message_hash):
         c = self.conn()
-        c.execute(
-            "INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
-            (channel, message_hash, int(time.time()))
-        )
+        c.execute("INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
+                  (channel, message_hash, int(time.time())))
         c.commit()
         c.close()
 
@@ -972,19 +951,15 @@ class Database:
 
     def add_watchlist(self, user_id, symbol, asset_type):
         c = self.conn()
-        c.execute(
-            "INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
-            (user_id, symbol.upper().strip(), asset_type.strip())
-        )
+        c.execute("INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
+                  (user_id, symbol.upper().strip(), asset_type.strip()))
         c.commit()
         c.close()
 
     def remove_watchlist(self, user_id, symbol, asset_type):
         c = self.conn()
-        c.execute(
-            "DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
-            (user_id, symbol.upper().strip(), asset_type.strip())
-        )
+        c.execute("DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
+                  (user_id, symbol.upper().strip(), asset_type.strip()))
         c.commit()
         c.close()
 
@@ -1043,9 +1018,9 @@ class Database:
 db = Database(Config.DATABASE)
 MEM_CACHE = {}
 
+
 def get_web_user():
     return db.get_user_by_session(request.cookies.get("session_token"))
-
 
 @app.before_request
 def load_req():
@@ -1055,10 +1030,8 @@ def load_req():
             db.upgrade_user(g.user["id"], "elite", billing_cycle="admin")
             g.user = db.get_user_by_id(g.user["id"])
 
-
 def is_admin():
     return bool(g.user and str(g.user.get("email", "")).lower() == Config.ADMIN_EMAIL)
-
 
 def require_auth(fn):
     @wraps(fn)
@@ -1068,10 +1041,8 @@ def require_auth(fn):
         return fn(*args, **kwargs)
     return wrap
 
-
 def require_tier(min_tier):
     tier_order = {"free": 0, "pro": 1, "elite": 2}
-
     def deco(fn):
         @wraps(fn)
         def wrap(*args, **kwargs):
@@ -1083,7 +1054,6 @@ def require_tier(min_tier):
         return wrap
     return deco
 
-
 def require_admin(fn):
     @wraps(fn)
     def wrap(*args, **kwargs):
@@ -1093,7 +1063,6 @@ def require_admin(fn):
             abort(403)
         return fn(*args, **kwargs)
     return wrap
-
 
 def set_session_cookie(resp, token):
     resp.set_cookie(
@@ -1106,7 +1075,6 @@ def set_session_cookie(resp, token):
     )
     return resp
 
-
 def get_cached_payload(key, ttl):
     mem = MEM_CACHE.get(key)
     if mem and (int(time.time()) - mem["updated_at"] <= ttl):
@@ -1115,7 +1083,6 @@ def get_cached_payload(key, ttl):
     if db_payload:
         MEM_CACHE[key] = {"data": db_payload, "updated_at": int(time.time())}
     return db_payload
-
 
 def set_cached_payload(key, payload):
     now = int(time.time())
@@ -1262,7 +1229,6 @@ def perform_stock_fetch():
 def fetch_crypto_quotes_safe():
     return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
 
-
 def fetch_stock_quotes_safe():
     return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
 
@@ -1330,7 +1296,6 @@ def calc_ema(prices, period):
         ema.append(p * k + ema[-1] * (1 - k))
     return ema
 
-
 def calc_sma(prices, period):
     out = []
     for i in range(len(prices)):
@@ -1339,7 +1304,6 @@ def calc_sma(prices, period):
         else:
             out.append(sum(prices[i + 1 - period:i + 1]) / period)
     return out
-
 
 def calc_rsi(prices, period=14):
     if len(prices) <= period:
@@ -1356,7 +1320,6 @@ def calc_rsi(prices, period=14):
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
-
 def calc_macd(prices):
     if len(prices) < 35:
         return 0.0, 0.0, 0.0
@@ -1366,7 +1329,6 @@ def calc_macd(prices):
     signal_line = calc_ema(macd_line, 9)
     hist = macd_line[-1] - signal_line[-1]
     return macd_line[-1], signal_line[-1], hist
-
 
 def calc_atr_proxy(candles, period=14):
     if len(candles) < period + 1:
@@ -1420,6 +1382,7 @@ def ava_brain_analyze(candles):
     recent_high_40 = max(highs[-40:-1])
     recent_low_40 = min(lows[-40:-1])
 
+    score = 0.0
     reasons = []
 
     trend_score = 0.0
@@ -1437,6 +1400,10 @@ def ava_brain_analyze(candles):
     ema9_slope_up = ema9[-1] > ema9[-2]
     ema20_slope_up = ema20[-1] > ema20[-2]
     ema50_slope_up = ema50[-1] > ema50[-2]
+
+    ema9_slope_down = ema9[-1] < ema9[-2]
+    ema20_slope_down = ema20[-1] < ema20[-2]
+    ema50_slope_down = ema50[-1] < ema50[-2]
 
     if strong_bull:
         trend_score += 4.0
@@ -1561,9 +1528,9 @@ def ava_brain_analyze(candles):
         score = 1.5
         reasons.append("Bullish conviction capped because the primary trend is still bearish.")
 
-    if score >= 5.0:
+    if score >= 6.5:
         sig = "BUY"
-    elif score <= -5.0:
+    elif score <= -6.5:
         sig = "SELL"
     else:
         sig = "HOLD"
@@ -1640,63 +1607,60 @@ def build_trade_setup(asset, candles, asset_type):
     if signal == "BUY":
         if current < ema20[-1] and ema20[-1] < ema50[-1]:
             return None
-        if score < 5.0:
+        if score < 6.5:
             return None
     elif signal == "SELL":
         if current > ema20[-1] and ema20[-1] > ema50[-1]:
             return None
-        if score > -5.0:
+        if score > -6.5:
             return None
 
     confidence = int(min(91, max(51, brain["conf"])))
 
     atr_floor = current * (0.012 if asset_type == "stock" else 0.008)
-    atr = max(float(atr), atr_floor)
+    atr = max(atr, atr_floor)
 
-    recent_high_20 = max(highs[-20:])
-    recent_low_20 = min(lows[-20:])
-    recent_high_10 = max(highs[-10:])
-    recent_low_10 = min(lows[-10:])
+    recent_high = max(highs[-20:])
+    recent_low = min(lows[-20:])
 
-    stop_mult = 1.8 if asset_type == "stock" else 1.3
+    stop_mult = 2.0 if asset_type == "stock" else 1.35
     tp1_mult = 1.7
     tp2_mult = 2.9
 
     if signal == "BUY":
         entry = current
-        stop = min(entry - atr * stop_mult, recent_low_10 - atr * 0.15)
+        stop = max(current - atr * stop_mult, recent_low * 0.985)
         if stop >= entry:
-            stop = entry - atr * 1.4
+            stop = current - atr * 1.8
         risk = max(entry - stop, 0.000001)
         tp1 = entry + risk * tp1_mult
         tp2 = entry + risk * tp2_mult
         rr = (tp1 - entry) / risk
 
         breakout_filter = current >= max(closes[-5:])
-        support_filter = current >= ema20[-1] * 0.98
-        structure_filter = current >= recent_high_20 * 0.985 or current >= ema20[-1]
-        if not (breakout_filter or support_filter or structure_filter):
+        support_filter = current >= ema20[-1] * 0.985
+        if not (breakout_filter or support_filter):
             return None
+
     else:
         entry = current
-        stop = max(entry + atr * stop_mult, recent_high_10 + atr * 0.15)
+        stop = min(current + atr * stop_mult, recent_high * 1.015)
         if stop <= entry:
-            stop = entry + atr * 1.4
+            stop = current + atr * 1.8
         risk = max(stop - entry, 0.000001)
         tp1 = entry - risk * tp1_mult
         tp2 = entry - risk * tp2_mult
         rr = (entry - tp1) / risk
 
         breakdown_filter = current <= min(closes[-5:])
-        resistance_filter = current <= ema20[-1] * 1.02
-        structure_filter = current <= recent_low_20 * 1.015 or current <= ema20[-1]
-        if not (breakdown_filter or resistance_filter or structure_filter):
+        resistance_filter = current <= ema20[-1] * 1.015
+        if not (breakdown_filter or resistance_filter):
             return None
 
     if rr < Config.SIGNAL_MIN_RR:
         return None
 
-    signal_ts = int(candles[-1].get("ts") or time.time())
+    signal_ts = candles[-1].get("ts") or int(time.time())
 
     return {
         "signal_id": f"{asset_type}:{asset['symbol']}:{signal_ts}",
@@ -1720,186 +1684,98 @@ def build_trade_setup(asset, candles, asset_type):
 def generate_active_signals():
     signals = []
 
-    crypto_seen = 0
-    crypto_fallback = 0
-    crypto_recent = 0
-    crypto_no_candles = 0
-    crypto_no_setup = 0
-    crypto_threshold = 0
-    crypto_added = 0
-
-    stock_seen = 0
-    stock_fallback = 0
-    stock_recent = 0
-    stock_no_candles = 0
-    stock_no_setup = 0
-    stock_threshold = 0
-    stock_added = 0
-
     for asset in fetch_crypto_quotes_safe()[:70]:
-        crypto_seen += 1
         if asset.get("is_fallback"):
-            crypto_fallback += 1
             continue
         if db.was_recent_signal(asset["symbol"], "crypto", cooldown_hours=24):
-            crypto_recent += 1
             continue
         candles = fetch_crypto_candles(asset["symbol"], 120)
-        if not candles or len(candles) < 80:
-            crypto_no_candles += 1
-            continue
         setup = build_trade_setup(asset, candles, "crypto")
-        if not setup:
-            crypto_no_setup += 1
-            continue
-        if setup["confidence"] < Config.SIGNAL_MIN_CONFIDENCE or setup["risk_reward"] < Config.SIGNAL_MIN_RR:
-            crypto_threshold += 1
-            continue
-        signals.append(setup)
-        crypto_added += 1
+        if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
+            signals.append(setup)
 
     for asset in fetch_stock_quotes_safe()[:50]:
-        stock_seen += 1
         if asset.get("is_fallback"):
-            stock_fallback += 1
             continue
         if db.was_recent_signal(asset["symbol"], "stock", cooldown_hours=72):
-            stock_recent += 1
             continue
         candles = fetch_stock_candles(asset["symbol"])
-        if not candles or len(candles) < 80:
-            stock_no_candles += 1
-            continue
         setup = build_trade_setup(asset, candles, "stock")
-        if not setup:
-            stock_no_setup += 1
-            continue
-        if setup["confidence"] < Config.SIGNAL_MIN_CONFIDENCE or setup["risk_reward"] < Config.SIGNAL_MIN_RR:
-            stock_threshold += 1
-            continue
-        signals.append(setup)
-        stock_added += 1
+        if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
+            signals.append(setup)
 
-    signals.sort(
-        key=lambda x: (
-            float(x["confidence"]),
-            float(x["risk_reward"]),
-            abs(float(x.get("change_pct", 0)))
-        ),
-        reverse=True
-    )
+    signals.sort(key=lambda x: (x["confidence"], x["risk_reward"]), reverse=True)
     signals = signals[:50]
     db.replace_active_signals(signals)
     db.sync_signal_history(signals)
-
-    logger.info(
-        "Signals generated=%s | crypto seen=%s fallback=%s recent=%s no_candles=%s no_setup=%s threshold=%s added=%s | "
-        "stocks seen=%s fallback=%s recent=%s no_candles=%s no_setup=%s threshold=%s added=%s",
-        len(signals),
-        crypto_seen, crypto_fallback, crypto_recent, crypto_no_candles, crypto_no_setup, crypto_threshold, crypto_added,
-        stock_seen, stock_fallback, stock_recent, stock_no_candles, stock_no_setup, stock_threshold, stock_added
-    )
-
     return signals
 
 
 def evaluate_signal_history_outcomes():
     open_rows = db.get_open_signal_history(limit=500)
-    if not open_rows:
-        logger.info("No OPEN signal rows to evaluate.")
-        return
-
-    resolved_count = 0
-    scanned_count = 0
 
     for row in open_rows:
-        try:
-            symbol = row["symbol"]
-            asset_type = row["asset_type"]
-            signal = row["signal"]
-            entry = float(row["entry_price"])
-            stop = float(row["stop_loss"])
-            tp1 = float(row["take_profit_1"])
-            tp2 = float(row["take_profit_2"])
-            created_at = int(row["created_at"])
+        symbol = row["symbol"]
+        asset_type = row["asset_type"]
+        signal = row["signal"]
+        stop = float(row["stop_loss"])
+        tp1 = float(row["take_profit_1"])
+        tp2 = float(row["take_profit_2"])
 
-            candles = fetch_crypto_candles(symbol, 120) if asset_type == "crypto" else fetch_stock_candles(symbol)
-            if not candles:
-                continue
+        candles = fetch_crypto_candles(symbol, 40) if asset_type == "crypto" else fetch_stock_candles(symbol)
+        if not candles:
+            continue
 
-            relevant = [c for c in candles if int(c.get("ts", 0)) >= created_at]
-            if not relevant:
-                continue
+        recent = candles[-5:]
+        outcome = None
+        note = ""
 
-            scanned_count += 1
-            entered = False
-            outcome = None
-            note = ""
+        for c in recent:
+            if signal == "BUY":
+                hit_stop = c["low"] <= stop
+                hit_tp1 = c["high"] >= tp1
+                hit_tp2 = c["high"] >= tp2
 
-            for c in relevant:
-                low_ = float(c["low"])
-                high_ = float(c["high"])
+                if hit_stop and (hit_tp1 or hit_tp2):
+                    outcome = "AMBIGUOUS"
+                    note = "Same candle touched stop and target; intrabar order unknown."
+                    break
+                elif hit_tp2:
+                    outcome = "TP2_HIT"
+                    note = "Candle high hit TP2."
+                    break
+                elif hit_tp1:
+                    outcome = "TP1_HIT"
+                    note = "Candle high hit TP1."
+                    break
+                elif hit_stop:
+                    outcome = "STOPPED"
+                    note = "Candle low hit stop."
+                    break
+            else:
+                hit_stop = c["high"] >= stop
+                hit_tp1 = c["low"] <= tp1
+                hit_tp2 = c["low"] <= tp2
 
-                if not entered:
-                    if low_ <= entry <= high_:
-                        entered = True
-                    else:
-                        continue
+                if hit_stop and (hit_tp1 or hit_tp2):
+                    outcome = "AMBIGUOUS"
+                    note = "Same candle touched stop and target; intrabar order unknown."
+                    break
+                elif hit_tp2:
+                    outcome = "TP2_HIT"
+                    note = "Candle low hit TP2."
+                    break
+                elif hit_tp1:
+                    outcome = "TP1_HIT"
+                    note = "Candle low hit TP1."
+                    break
+                elif hit_stop:
+                    outcome = "STOPPED"
+                    note = "Candle high hit stop."
+                    break
 
-                if signal == "BUY":
-                    hit_stop = low_ <= stop
-                    hit_tp1 = high_ >= tp1
-                    hit_tp2 = high_ >= tp2
-
-                    if hit_stop and (hit_tp1 or hit_tp2):
-                        outcome = "AMBIGUOUS"
-                        note = "Same candle touched stop and target after entry; intrabar order unknown."
-                        break
-                    elif hit_tp2:
-                        outcome = "TP2_HIT"
-                        note = "Price reached TP2 after entry."
-                        break
-                    elif hit_tp1:
-                        outcome = "TP1_HIT"
-                        note = "Price reached TP1 after entry."
-                        break
-                    elif hit_stop:
-                        outcome = "STOPPED"
-                        note = "Price hit stop after entry."
-                        break
-                else:
-                    hit_stop = high_ >= stop
-                    hit_tp1 = low_ <= tp1
-                    hit_tp2 = low_ <= tp2
-
-                    if hit_stop and (hit_tp1 or hit_tp2):
-                        outcome = "AMBIGUOUS"
-                        note = "Same candle touched stop and target after entry; intrabar order unknown."
-                        break
-                    elif hit_tp2:
-                        outcome = "TP2_HIT"
-                        note = "Price reached TP2 after entry."
-                        break
-                    elif hit_tp1:
-                        outcome = "TP1_HIT"
-                        note = "Price reached TP1 after entry."
-                        break
-                    elif hit_stop:
-                        outcome = "STOPPED"
-                        note = "Price hit stop after entry."
-                        break
-
-            if outcome:
-                db.update_signal_outcome(row["history_id"], outcome, note)
-                resolved_count += 1
-
-        except Exception as e:
-            logger.warning(f"Outcome evaluation failed for {row.get('symbol')}: {e}")
-
-    logger.info(
-        "Outcome evaluation complete | open_rows=%s scanned=%s resolved=%s",
-        len(open_rows), scanned_count, resolved_count
-    )
+        if outcome:
+            db.update_signal_outcome(row["history_id"], outcome, note)
 
 
 def get_confidence_accuracy_breakdown():
@@ -2054,10 +1930,8 @@ PLAN_META = {
     "elite_monthly": {"tier": "elite", "billing": "monthly", "price_id": Config.STRIPE_PRICE_ELITE_MONTHLY},
 }
 
-
 def stripe_enabled():
     return bool(stripe and Config.STRIPE_SECRET_KEY)
-
 
 def create_checkout_session(user, plan_key):
     if not stripe_enabled():
@@ -2075,14 +1949,10 @@ def create_checkout_session(user, plan_key):
         metadata={"tier": plan["tier"], "billing": plan["billing"], "plan_key": plan_key}
     )
 
-
 def create_billing_portal(customer_id):
     if not stripe_enabled():
         raise RuntimeError("Stripe not configured")
-    return stripe.billing_portal.Session.create(
-        customer=customer_id,
-        return_url=f"{Config.DOMAIN}/dashboard"
-    )
+    return stripe.billing_portal.Session.create(customer=customer_id, return_url=f"{Config.DOMAIN}/dashboard")
 
 
 def draw_candles_html(candles):
@@ -2358,12 +2228,7 @@ def get_hot_assets():
     signals = db.get_active_signals(limit=100)
     hot = sorted(
         signals,
-        key=lambda x: (
-            float(x.get("confidence", 0)),
-            float(x.get("risk_reward", 0)),
-            1 if str(x.get("signal", "")).upper() in ("BUY", "SELL") else 0,
-            abs(float(x.get("change_pct", 0)))
-        ),
+        key=lambda x: (float(x.get("confidence", 0)), float(x.get("risk_reward", 0)), abs(float(x.get("change_pct", 0)))),
         reverse=True
     )
     return hot[:12]
@@ -2409,7 +2274,7 @@ def build_forecasts():
     forecasts.sort(key=lambda x: int(x["confidence"]), reverse=True)
     return forecasts[:20]
 
-    @app.route("/api/live/crypto-list")
+@app.route("/api/live/crypto-list")
 def api_live_crypto():
     assets = fetch_crypto_quotes_safe()
     items = [{
@@ -2868,6 +2733,7 @@ def pricing():
       </div>
 
       <div class="grid-3" style="align-items:stretch;">
+
         <div class="price-card">
           <div class="pill">Free</div>
           <div class="price">Free</div>
@@ -2914,6 +2780,7 @@ def pricing():
             <button type="submit" class="btn btn-secondary" style="width:100%;">Subscribe for $29/month</button>
           </form>
         </div>
+
       </div>
 
       <div style="text-align:center;margin-top:60px;">
@@ -3623,29 +3490,26 @@ _bg_started = False
 def start_background_loop():
     global _bg_started
     if _bg_started:
-        logger.info("Background loop already started.")
         return
 
     def loop():
         logger.info("Background loop starting...")
         while True:
             try:
-                logger.info("Background cycle start")
                 perform_crypto_fetch()
                 perform_stock_fetch()
                 sigs = generate_active_signals()
                 evaluate_signal_history_outcomes()
                 maybe_broadcast_top_signals(sigs[:3])
-                logger.info(f"Background cycle complete. active_signals={len(sigs)}")
             except Exception as e:
-                logger.exception(f"Background cycle error: {e}")
+                logger.warning(f"Background cycle error: {e}")
             time.sleep(60)
 
     threading.Thread(target=loop, daemon=True).start()
     _bg_started = True
 
 
-if os.environ.get("ENABLE_BACKGROUND_LOOP", "false").lower() == "true":
+if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not Config.DEBUG:
     start_background_loop()
 
 
