@@ -3645,7 +3645,7 @@ def start_background_loop():
     _bg_started = True
 
 
-if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not Config.DEBUG:
+if os.environ.get("ENABLE_BACKGROUND_LOOP", "false").lower() == "true":
     start_background_loop()
 
 
