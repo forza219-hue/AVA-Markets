@@ -411,6 +411,7 @@ SYMBOL_LEARN = {
 def h(v):
     return html.escape("" if v is None else str(v), quote=True)
 
+
 def fmt_price(v, sym=None):
     try:
         vf = float(v)
@@ -418,14 +419,17 @@ def fmt_price(v, sym=None):
     except Exception:
         return "$0.00"
 
+
 def fmt_change(v):
     try:
         return f"{float(v):+.2f}%"
     except Exception:
         return "+0.00%"
 
+
 def pct_change(price, prev):
     return 0.0 if prev in [0, None] else ((price - prev) / prev) * 100.0
+
 
 def compute_light_signal(c):
     try:
@@ -434,12 +438,15 @@ def compute_light_signal(c):
         c = 0.0
     return "BUY" if c >= 0.8 else "SELL" if c <= -0.8 else "HOLD"
 
+
 def normalize_symbol_id(sym):
     return str(sym).replace("=", "_").replace("-", "_").replace("/", "_")
+
 
 def get_stock_logo(sym):
     d = STOCK_DOMAINS.get(str(sym).upper())
     return f"https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://{d}&size=128" if d else ""
+
 
 def get_crypto_logo(sym):
     s = str(sym).upper()
@@ -447,8 +454,10 @@ def get_crypto_logo(sym):
         return CRYPTO_LOGO_OVERRIDES[s]
     return f"https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/{s.lower()}.png"
 
+
 def get_asset_icon(sym):
     return {"GC=F": "🥇", "SI=F": "🥈", "CL=F": "🛢️"}.get(str(sym).upper(), "📈")
+
 
 def paginate(items, page, per_page):
     if not items:
@@ -458,6 +467,7 @@ def paginate(items, page, per_page):
     page = max(1, min(page, pages))
     start = (page - 1) * per_page
     return items[start:start + per_page], total, pages, page
+
 
 def render_pagination(base_url, current, pages):
     if pages <= 1:
@@ -732,8 +742,10 @@ class Database:
 
     def cache_set(self, key, payload):
         c = self.conn()
-        c.execute("REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
-                  (key, json.dumps(payload), int(time.time())))
+        c.execute(
+            "REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
+            (key, json.dumps(payload), int(time.time()))
+        )
         c.commit()
         c.close()
 
@@ -913,8 +925,10 @@ class Database:
 
     def log_email_event(self, email, event_type, meta=None):
         c = self.conn()
-        c.execute("INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
-                  (email.lower().strip(), event_type, json.dumps(meta or {})))
+        c.execute(
+            "INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
+            (email.lower().strip(), event_type, json.dumps(meta or {}))
+        )
         c.commit()
         c.close()
 
@@ -931,8 +945,10 @@ class Database:
 
     def log_broadcast(self, channel, message_hash):
         c = self.conn()
-        c.execute("INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
-                  (channel, message_hash, int(time.time())))
+        c.execute(
+            "INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
+            (channel, message_hash, int(time.time()))
+        )
         c.commit()
         c.close()
 
@@ -956,15 +972,19 @@ class Database:
 
     def add_watchlist(self, user_id, symbol, asset_type):
         c = self.conn()
-        c.execute("INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
-                  (user_id, symbol.upper().strip(), asset_type.strip()))
+        c.execute(
+            "INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
+            (user_id, symbol.upper().strip(), asset_type.strip())
+        )
         c.commit()
         c.close()
 
     def remove_watchlist(self, user_id, symbol, asset_type):
         c = self.conn()
-        c.execute("DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
-                  (user_id, symbol.upper().strip(), asset_type.strip()))
+        c.execute(
+            "DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
+            (user_id, symbol.upper().strip(), asset_type.strip())
+        )
         c.commit()
         c.close()
 
@@ -1023,9 +1043,9 @@ class Database:
 db = Database(Config.DATABASE)
 MEM_CACHE = {}
 
-
 def get_web_user():
     return db.get_user_by_session(request.cookies.get("session_token"))
+
 
 @app.before_request
 def load_req():
@@ -1035,8 +1055,10 @@ def load_req():
             db.upgrade_user(g.user["id"], "elite", billing_cycle="admin")
             g.user = db.get_user_by_id(g.user["id"])
 
+
 def is_admin():
     return bool(g.user and str(g.user.get("email", "")).lower() == Config.ADMIN_EMAIL)
+
 
 def require_auth(fn):
     @wraps(fn)
@@ -1046,8 +1068,10 @@ def require_auth(fn):
         return fn(*args, **kwargs)
     return wrap
 
+
 def require_tier(min_tier):
     tier_order = {"free": 0, "pro": 1, "elite": 2}
+
     def deco(fn):
         @wraps(fn)
         def wrap(*args, **kwargs):
@@ -1059,6 +1083,7 @@ def require_tier(min_tier):
         return wrap
     return deco
 
+
 def require_admin(fn):
     @wraps(fn)
     def wrap(*args, **kwargs):
@@ -1068,6 +1093,7 @@ def require_admin(fn):
             abort(403)
         return fn(*args, **kwargs)
     return wrap
+
 
 def set_session_cookie(resp, token):
     resp.set_cookie(
@@ -1080,6 +1106,7 @@ def set_session_cookie(resp, token):
     )
     return resp
 
+
 def get_cached_payload(key, ttl):
     mem = MEM_CACHE.get(key)
     if mem and (int(time.time()) - mem["updated_at"] <= ttl):
@@ -1089,10 +1116,12 @@ def get_cached_payload(key, ttl):
         MEM_CACHE[key] = {"data": db_payload, "updated_at": int(time.time())}
     return db_payload
 
+
 def set_cached_payload(key, payload):
     now = int(time.time())
     MEM_CACHE[key] = {"data": payload, "updated_at": now}
     db.cache_set(key, payload)
+
 
 def perform_crypto_fetch():
     results = []
@@ -1233,6 +1262,7 @@ def perform_stock_fetch():
 def fetch_crypto_quotes_safe():
     return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
 
+
 def fetch_stock_quotes_safe():
     return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
 
@@ -1300,6 +1330,7 @@ def calc_ema(prices, period):
         ema.append(p * k + ema[-1] * (1 - k))
     return ema
 
+
 def calc_sma(prices, period):
     out = []
     for i in range(len(prices)):
@@ -1308,6 +1339,7 @@ def calc_sma(prices, period):
         else:
             out.append(sum(prices[i + 1 - period:i + 1]) / period)
     return out
+
 
 def calc_rsi(prices, period=14):
     if len(prices) <= period:
@@ -1324,6 +1356,7 @@ def calc_rsi(prices, period=14):
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
+
 def calc_macd(prices):
     if len(prices) < 35:
         return 0.0, 0.0, 0.0
@@ -1333,6 +1366,7 @@ def calc_macd(prices):
     signal_line = calc_ema(macd_line, 9)
     hist = macd_line[-1] - signal_line[-1]
     return macd_line[-1], signal_line[-1], hist
+
 
 def calc_atr_proxy(candles, period=14):
     if len(candles) < period + 1:
@@ -1583,10 +1617,6 @@ def ava_brain_analyze(candles):
     }
 
 
-def _entry_touched(candle, entry):
-    return float(candle["low"]) <= float(entry) <= float(candle["high"])
-
-
 def build_trade_setup(asset, candles, asset_type):
     if not candles or len(candles) < 80:
         return None
@@ -1647,7 +1677,6 @@ def build_trade_setup(asset, candles, asset_type):
         structure_filter = current >= recent_high_20 * 0.985 or current >= ema20[-1]
         if not (breakout_filter or support_filter or structure_filter):
             return None
-
     else:
         entry = current
         stop = max(entry + atr * stop_mult, recent_high_10 + atr * 0.15)
@@ -2025,8 +2054,10 @@ PLAN_META = {
     "elite_monthly": {"tier": "elite", "billing": "monthly", "price_id": Config.STRIPE_PRICE_ELITE_MONTHLY},
 }
 
+
 def stripe_enabled():
     return bool(stripe and Config.STRIPE_SECRET_KEY)
+
 
 def create_checkout_session(user, plan_key):
     if not stripe_enabled():
@@ -2044,12 +2075,17 @@ def create_checkout_session(user, plan_key):
         metadata={"tier": plan["tier"], "billing": plan["billing"], "plan_key": plan_key}
     )
 
+
 def create_billing_portal(customer_id):
     if not stripe_enabled():
         raise RuntimeError("Stripe not configured")
-    return stripe.billing_portal.Session.create(customer=customer_id, return_url=f"{Config.DOMAIN}/dashboard")
+    return stripe.billing_portal.Session.create(
+        customer=customer_id,
+        return_url=f"{Config.DOMAIN}/dashboard"
+    )
 
-    def draw_candles_html(candles):
+
+def draw_candles_html(candles):
     if not candles:
         return "<div class='candle-container' style='justify-content:center; align-items:center; color:#cbd5e1;'>No chart data available.</div>"
 
@@ -2373,8 +2409,7 @@ def build_forecasts():
     forecasts.sort(key=lambda x: int(x["confidence"]), reverse=True)
     return forecasts[:20]
 
-
-@app.route("/api/live/crypto-list")
+    @app.route("/api/live/crypto-list")
 def api_live_crypto():
     assets = fetch_crypto_quotes_safe()
     items = [{
@@ -2704,7 +2739,8 @@ def watchlist_remove():
     db.remove_watchlist(g.user["id"], request.form.get("symbol", ""), request.form.get("asset_type", "crypto"))
     return redirect("/dashboard")
 
-    @app.route("/portfolio")
+
+@app.route("/portfolio")
 @require_auth
 def portfolio():
     analytics = build_portfolio_analytics(g.user["id"])
@@ -2832,7 +2868,6 @@ def pricing():
       </div>
 
       <div class="grid-3" style="align-items:stretch;">
-
         <div class="price-card">
           <div class="pill">Free</div>
           <div class="price">Free</div>
@@ -2879,7 +2914,6 @@ def pricing():
             <button type="submit" class="btn btn-secondary" style="width:100%;">Subscribe for $29/month</button>
           </form>
         </div>
-
       </div>
 
       <div style="text-align:center;margin-top:60px;">
@@ -2959,7 +2993,8 @@ def signals():
     """
     return nav_layout("Signals - AVA", content)
 
-    @app.route("/trends")
+
+@app.route("/trends")
 @require_tier("pro")
 def trends():
     gainers, losers = get_trend_lists()
@@ -3193,7 +3228,8 @@ def history():
     """
     return nav_layout("History - AVA", content)
 
-    @app.route("/crypto")
+
+@app.route("/crypto")
 def crypto():
     try:
         page = int(request.args.get("page", 1))
@@ -3436,7 +3472,8 @@ def blog_post(slug):
     """
     return nav_layout(post["title"], content)
 
-    @app.route("/admin")
+
+@app.route("/admin")
 @require_admin
 def admin():
     stats = db.get_signal_stats()
