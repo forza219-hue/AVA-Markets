@@ -76,7 +76,7 @@ class Config:
     PAGE_SIZE_CRYPTO = 100
     PAGE_SIZE_STOCKS = 100
 
-    SIGNAL_MIN_CONFIDENCE = 66
+    SIGNAL_MIN_CONFIDENCE = 70
     SIGNAL_MIN_RR = 1.2
 
 
@@ -413,7 +413,19 @@ CRYPTO_LOGO_OVERRIDES = {
     "DYDX": "https://assets.coingecko.com/coins/images/17500/large/hjnIm9bV.jpg",
     "GMX": "https://assets.coingecko.com/coins/images/18323/large/arbit.png",
     "CKB": "https://assets.coingecko.com/coins/images/9566/large/Nervos_White.png",
-    "CELR": "https://assets.coingecko.com/coins/images/4379/large/Celr.png"
+    "CELR": "https://assets.coingecko.com/coins/images/4379/large/Celr.png",
+
+    "APT": "https://assets.coingecko.com/coins/images/26455/large/aptos_round.png",
+    "ARB": "https://assets.coingecko.com/coins/images/16547/large/arb.jpg",
+    "OP": "https://assets.coingecko.com/coins/images/25244/large/Optimism.png",
+    "SUI": "https://assets.coingecko.com/coins/images/26375/large/sui-ocean-square.png",
+    "PEPE": "https://assets.coingecko.com/coins/images/29850/large/pepe-token.jpeg",
+    "SHIB": "https://assets.coingecko.com/coins/images/11939/large/shiba.png",
+    "HBAR": "https://assets.coingecko.com/coins/images/3688/large/hbar.png",
+    "AXS": "https://assets.coingecko.com/coins/images/13029/large/axie_infinity_logo.png",
+    "IOTA": "https://assets.coingecko.com/coins/images/692/large/IOTA_Swirl.png",
+    "WOO": "https://assets.coingecko.com/coins/images/12921/large/WOO_Logotype_RGB_Yellow.png",
+    "OCEAN": "https://assets.coingecko.com/coins/images/3687/large/ocean-protocol-logo.jpg"
 }
 
 BLOG_POSTS = {
@@ -799,7 +811,7 @@ class Database:
         c.execute("""
             UPDATE users
             SET tier = ?, stripe_customer_id = COALESCE(?, stripe_customer_id),
-                stripe_sub_id = COALESCE(?, stripe_sub_id), billing_cycle = COALESCE(?, billing_cycle)
+                stripe_sub_id = COALESCE(?, stripe_sub_id), billing_cycle = ?
             WHERE id = ?
         """, (tier, customer_id, sub_id, billing_cycle, user_id))
         c.commit()
@@ -821,8 +833,10 @@ class Database:
 
     def cache_set(self, key, payload):
         c = self.conn()
-        c.execute("REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
-                  (key, json.dumps(payload), int(time.time())))
+        c.execute(
+            "REPLACE INTO market_cache (cache_key, payload_json, updated_at) VALUES (?, ?, ?)",
+            (key, json.dumps(payload), int(time.time()))
+        )
         c.commit()
         c.close()
 
@@ -871,7 +885,11 @@ class Database:
 
         for s in signals:
             active_ids.add(s["signal_id"])
-            row = c.execute("SELECT * FROM signal_history WHERE signal_id = ? AND outcome = 'OPEN'", (s["signal_id"],)).fetchone()
+            row = c.execute(
+                "SELECT * FROM signal_history WHERE signal_id = ? AND outcome = 'OPEN'",
+                (s["signal_id"],)
+            ).fetchone()
+
             if not row:
                 c.execute("""
                     INSERT INTO signal_history (
@@ -907,7 +925,12 @@ class Database:
 
     def get_open_signal_history(self, limit=200):
         c = self.conn()
-        rows = c.execute("SELECT * FROM signal_history WHERE outcome = 'OPEN' ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        rows = c.execute("""
+            SELECT * FROM signal_history
+            WHERE outcome = 'OPEN'
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
         c.close()
         return [dict(r) for r in rows]
 
@@ -921,6 +944,30 @@ class Database:
         c.commit()
         c.close()
 
+    def was_recent_signal(self, symbol, asset_type, cooldown_hours=48):
+        c = self.conn()
+        cutoff = int(time.time()) - int(cooldown_hours * 3600)
+        row = c.execute("""
+            SELECT 1
+            FROM signal_history
+            WHERE symbol = ? AND asset_type = ? AND created_at >= ?
+            LIMIT 1
+        """, (str(symbol).upper().strip(), str(asset_type).strip(), cutoff)).fetchone()
+        c.close()
+        return bool(row)
+
+    def invalidate_legacy_history(self):
+        c = self.conn()
+        c.execute("""
+            UPDATE signal_history
+            SET outcome = 'LEGACY_INVALID',
+                outcome_note = 'Invalidated after signal engine correction.',
+                updated_at = ?
+            WHERE outcome IN ('OPEN', 'EXPIRED', 'STOPPED', 'TP1_HIT', 'TP2_HIT', 'AMBIGUOUS')
+        """, (int(time.time()),))
+        c.commit()
+        c.close()
+
     def get_signal_stats(self):
         c = self.conn()
         total = c.execute("SELECT COUNT(*) AS n FROM signal_history").fetchone()["n"]
@@ -929,13 +976,21 @@ class Database:
         tp1_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='TP1_HIT'").fetchone()["n"]
         tp2_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='TP2_HIT'").fetchone()["n"]
         stopped_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='STOPPED'").fetchone()["n"]
+        ambiguous_n = c.execute("SELECT COUNT(*) AS n FROM signal_history WHERE outcome='AMBIGUOUS'").fetchone()["n"]
+
         closed_wins = tp1_n + tp2_n
         closed_total = closed_wins + stopped_n
         win_rate = round((closed_wins / closed_total) * 100, 2) if closed_total > 0 else 0.0
+
         c.close()
         return {
-            "total": total, "open": open_n, "expired": expired_n,
-            "tp1_hit": tp1_n, "tp2_hit": tp2_n, "stopped": stopped_n,
+            "total": total,
+            "open": open_n,
+            "expired": expired_n,
+            "tp1_hit": tp1_n,
+            "tp2_hit": tp2_n,
+            "stopped": stopped_n,
+            "ambiguous": ambiguous_n,
             "win_rate": win_rate
         }
 
@@ -959,8 +1014,10 @@ class Database:
 
     def log_email_event(self, email, event_type, meta=None):
         c = self.conn()
-        c.execute("INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
-                  (email.lower().strip(), event_type, json.dumps(meta or {})))
+        c.execute(
+            "INSERT INTO email_events (email, event_type, meta_json) VALUES (?, ?, ?)",
+            (email.lower().strip(), event_type, json.dumps(meta or {}))
+        )
         c.commit()
         c.close()
 
@@ -977,8 +1034,10 @@ class Database:
 
     def log_broadcast(self, channel, message_hash):
         c = self.conn()
-        c.execute("INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
-                  (channel, message_hash, int(time.time())))
+        c.execute(
+            "INSERT INTO broadcast_log (channel, message_hash, created_at) VALUES (?, ?, ?)",
+            (channel, message_hash, int(time.time()))
+        )
         c.commit()
         c.close()
 
@@ -1002,15 +1061,19 @@ class Database:
 
     def add_watchlist(self, user_id, symbol, asset_type):
         c = self.conn()
-        c.execute("INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
-                  (user_id, symbol.upper().strip(), asset_type.strip()))
+        c.execute(
+            "INSERT OR IGNORE INTO watchlists (user_id, symbol, asset_type) VALUES (?, ?, ?)",
+            (user_id, symbol.upper().strip(), asset_type.strip())
+        )
         c.commit()
         c.close()
 
     def remove_watchlist(self, user_id, symbol, asset_type):
         c = self.conn()
-        c.execute("DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
-                  (user_id, symbol.upper().strip(), asset_type.strip()))
+        c.execute(
+            "DELETE FROM watchlists WHERE user_id = ? AND symbol = ? AND asset_type = ?",
+            (user_id, symbol.upper().strip(), asset_type.strip())
+        )
         c.commit()
         c.close()
 
@@ -1130,7 +1193,6 @@ def set_session_cookie(resp, token):
     )
     return resp
 
-
 def get_cached_payload(key, ttl):
     mem = MEM_CACHE.get(key)
     if mem and (int(time.time()) - mem["updated_at"] <= ttl):
@@ -1144,6 +1206,7 @@ def set_cached_payload(key, payload):
     now = int(time.time())
     MEM_CACHE[key] = {"data": payload, "updated_at": now}
     db.cache_set(key, payload)
+
 
 def perform_crypto_fetch():
     results = []
@@ -1160,9 +1223,14 @@ def perform_crypto_fetch():
                     change = float(item.get("change_percentage", 0))
                     if price > 0:
                         results.append({
-                            "symbol": symbol, "name": name, "price": price, "change": change,
-                            "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                            "logo": get_crypto_logo(symbol), "icon": "₿"
+                            "symbol": symbol,
+                            "name": name,
+                            "price": price,
+                            "change": change,
+                            "dir": "up" if change >= 0 else "down",
+                            "signal": compute_light_signal(change),
+                            "logo": get_crypto_logo(symbol),
+                            "icon": "₿"
                         })
                 except Exception:
                     continue
@@ -1183,9 +1251,14 @@ def perform_crypto_fetch():
                         change = float(item.get("change24h", 0)) * 100.0
                         if price > 0:
                             results.append({
-                                "symbol": symbol, "name": name, "price": price, "change": change,
-                                "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                                "logo": get_crypto_logo(symbol), "icon": "₿"
+                                "symbol": symbol,
+                                "name": name,
+                                "price": price,
+                                "change": change,
+                                "dir": "up" if change >= 0 else "down",
+                                "signal": compute_light_signal(change),
+                                "logo": get_crypto_logo(symbol),
+                                "icon": "₿"
                             })
                     except Exception:
                         continue
@@ -1211,14 +1284,18 @@ def perform_crypto_fetch():
     results = sorted(results, key=lambda x: next((i for i, t in enumerate(CRYPTO_TOP_90) if t[0] == x["symbol"]), 9999))
     set_cached_payload("crypto_list", results)
 
+
 def perform_stock_fetch():
     results = []
     headers = {"User-Agent": "Mozilla/5.0"}
 
     for symbol, name in STOCK_UNIVERSE:
         try:
-            r = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d",
-                             headers=headers, timeout=5)
+            r = requests.get(
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=5d",
+                headers=headers,
+                timeout=5
+            )
             if r.status_code == 200:
                 res = r.json().get("chart", {}).get("result", [])
                 if res:
@@ -1228,9 +1305,14 @@ def perform_stock_fetch():
                     if price > 0:
                         change = pct_change(price, prev)
                         results.append({
-                            "symbol": symbol, "name": name, "price": price, "change": change,
-                            "dir": "up" if change >= 0 else "down", "signal": compute_light_signal(change),
-                            "logo": get_stock_logo(symbol), "icon": get_asset_icon(symbol)
+                            "symbol": symbol,
+                            "name": name,
+                            "price": price,
+                            "change": change,
+                            "dir": "up" if change >= 0 else "down",
+                            "signal": compute_light_signal(change),
+                            "logo": get_stock_logo(symbol),
+                            "icon": get_asset_icon(symbol)
                         })
             time.sleep(0.12)
         except Exception:
@@ -1255,11 +1337,13 @@ def perform_stock_fetch():
     results = sorted(results, key=lambda x: next((i for i, t in enumerate(STOCK_UNIVERSE) if t[0] == x["symbol"]), 9999))
     set_cached_payload("stock_list", results)
 
+
 def fetch_crypto_quotes_safe():
     return get_cached_payload("crypto_list", Config.CRYPTO_CACHE_TTL) or db.cache_get_stale("crypto_list") or []
 
 def fetch_stock_quotes_safe():
     return get_cached_payload("stock_list", Config.STOCK_CACHE_TTL) or db.cache_get_stale("stock_list") or []
+
 
 def fetch_crypto_candles(symbol, limit=120):
     try:
@@ -1282,11 +1366,15 @@ def fetch_crypto_candles(symbol, limit=120):
         return []
     return []
 
+
 def fetch_stock_candles(symbol):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=6mo",
-                         headers=headers, timeout=5)
+        r = requests.get(
+            f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=6mo",
+            headers=headers,
+            timeout=5
+        )
         if r.status_code == 200:
             res = r.json().get("chart", {}).get("result", [])
             if res:
@@ -1309,6 +1397,7 @@ def fetch_stock_candles(symbol):
     except Exception:
         return []
     return []
+
 
 def calc_ema(prices, period):
     if not prices:
@@ -1362,13 +1451,14 @@ def calc_atr_proxy(candles, period=14):
 
     trs = []
     for i in range(1, len(candles)):
-        h = candles[i]["high"]
-        l = candles[i]["low"]
+        h_ = candles[i]["high"]
+        l_ = candles[i]["low"]
         pc = candles[i - 1]["close"]
-        tr = max(h - l, abs(h - pc), abs(l - pc))
+        tr = max(h_ - l_, abs(h_ - pc), abs(l_ - pc))
         trs.append(tr)
     recent = trs[-period:]
     return sum(recent) / len(recent) if recent else 0.0
+
 
 def ava_brain_analyze(candles):
     if len(candles) < 60:
@@ -1402,12 +1492,16 @@ def ava_brain_analyze(candles):
 
     score = 0
     reasons = []
+    regime = "Range / Mixed"
 
-    if current > ema9[-1] > ema20[-1] > ema50[-1]:
+    strong_bull = current > ema9[-1] > ema20[-1] > ema50[-1]
+    strong_bear = current < ema9[-1] < ema20[-1] < ema50[-1]
+
+    if strong_bull:
         score += 4
         regime = "Strong Bull Trend"
         reasons.append("Price is stacked above EMA-9, EMA-20 and EMA-50.")
-    elif current < ema9[-1] < ema20[-1] < ema50[-1]:
+    elif strong_bear:
         score -= 4
         regime = "Strong Bear Trend"
         reasons.append("Price is stacked below EMA-9, EMA-20 and EMA-50.")
@@ -1435,7 +1529,7 @@ def ava_brain_analyze(candles):
         score -= 1
         reasons.append("RSI is overextended.")
     elif rsi > 55:
-        score += 2
+        score += 1
         reasons.append("RSI supports bullish momentum.")
     elif rsi < 45:
         score -= 1
@@ -1449,17 +1543,17 @@ def ava_brain_analyze(candles):
         reasons.append("MACD is negative and weakening.")
 
     if current > recent_high_10 and current > prev_close:
-        score += 2
+        score += 1
         reasons.append("Fresh breakout above 10-period resistance.")
     elif current < recent_low_10 and current < prev_close:
-        score -= 2
+        score -= 1
         reasons.append("Fresh breakdown below 10-period support.")
 
     if current > recent_high_20:
-        score += 2
+        score += 1
         reasons.append("Price is above 20-period structure highs.")
     elif current < recent_low_20:
-        score -= 2
+        score -= 1
         reasons.append("Price is below 20-period structure support.")
 
     if atr > 0 and (atr / max(current, 0.000001)) > 0.03:
@@ -1467,8 +1561,16 @@ def ava_brain_analyze(candles):
     else:
         reasons.append("Volatility is controlled and trend-friendly.")
 
-    sig = "BUY" if score >= 6 else "SELL" if score <= -6 else "HOLD"
-    conf = min(98, max(50, 54 + abs(score) * 5))
+    # avoid fighting strong primary trend too aggressively
+    if strong_bull and score < 0:
+        score = max(score, -1)
+        reasons.append("Bearish conviction reduced because primary trend remains strongly bullish.")
+    if strong_bear and score > 0:
+        score = min(score, 1)
+        reasons.append("Bullish conviction reduced because primary trend remains strongly bearish.")
+
+    sig = "BUY" if score >= 5 else "SELL" if score <= -5 else "HOLD"
+    conf = min(82, max(52, 55 + abs(score) * 3))
 
     return {
         "signal": sig,
@@ -1478,49 +1580,72 @@ def ava_brain_analyze(candles):
         "score": score
     }
 
+
 def build_trade_setup(asset, candles, asset_type):
     if not candles or len(candles) < 60:
         return None
 
     brain = ava_brain_analyze(candles)
     current = float(candles[-1]["close"])
-    atr = max(calc_atr_proxy(candles, 14), current * 0.008)
+
+    closes = [c["close"] for c in candles]
+    ema20 = calc_ema(closes, 20)
+    ema50 = calc_ema(closes, 50)
+
+    signal = brain["signal"]
+    if signal == "HOLD":
+        return None
+
+    # avoid shorting clear strong uptrends
+    if signal == "SELL" and len(ema20) >= 2 and len(ema50) >= 2:
+        if current > ema20[-1] and ema20[-1] > ema50[-1]:
+            return None
+
+    # avoid buying clear strong downtrends
+    if signal == "BUY" and len(ema20) >= 2 and len(ema50) >= 2:
+        if current < ema20[-1] and ema20[-1] < ema50[-1]:
+            return None
+
+    confidence = min(82, max(52, int(brain["conf"])))
+
+    atr_floor = current * (0.012 if asset_type == "stock" else 0.008)
+    atr = max(calc_atr_proxy(candles, 14), atr_floor)
 
     highs = [c["high"] for c in candles[-20:]]
     lows = [c["low"] for c in candles[-20:]]
     recent_high = max(highs)
     recent_low = min(lows)
 
-    signal = brain["signal"]
-    if signal == "HOLD":
-        return None
+    stop_mult = 2.2 if asset_type == "stock" else 1.4
 
     if signal == "BUY":
         entry = current
-        stop = max(current - atr * 1.25, recent_low * 0.995)
+        stop = max(current - atr * stop_mult, recent_low * 0.985)
         if stop >= entry:
-            stop = current - atr
+            stop = current - atr * max(1.8, stop_mult)
         risk = max(entry - stop, 0.000001)
-        tp1 = entry + risk * 1.6
-        tp2 = entry + risk * 2.8
+        tp1 = entry + risk * 1.8
+        tp2 = entry + risk * 3.0
         rr = (tp1 - entry) / risk
     else:
         entry = current
-        stop = min(current + atr * 1.25, recent_high * 1.005)
+        stop = min(current + atr * stop_mult, recent_high * 1.015)
         if stop <= entry:
-            stop = current + atr
+            stop = current + atr * max(1.8, stop_mult)
         risk = max(stop - entry, 0.000001)
-        tp1 = entry - risk * 1.6
-        tp2 = entry - risk * 2.8
+        tp1 = entry - risk * 1.8
+        tp2 = entry - risk * 3.0
         rr = (entry - tp1) / risk
 
+    signal_ts = candles[-1].get("ts") or int(time.time())
+
     return {
-        "signal_id": f"{asset_type}:{asset['symbol']}",
+        "signal_id": f"{asset_type}:{asset['symbol']}:{signal_ts}",
         "symbol": asset["symbol"],
         "asset_type": asset_type,
         "name": asset["name"],
         "signal": signal,
-        "confidence": int(brain["conf"]),
+        "confidence": confidence,
         "regime": brain["regime"],
         "entry_price": round(entry, 8),
         "stop_loss": round(stop, 8),
@@ -1532,16 +1657,23 @@ def build_trade_setup(asset, candles, asset_type):
         "change_pct": round(float(asset["change"]), 4)
     }
 
+
 def generate_active_signals():
     signals = []
 
     for asset in fetch_crypto_quotes_safe()[:60]:
+        if db.was_recent_signal(asset["symbol"], "crypto", cooldown_hours=24):
+            continue
+
         candles = fetch_crypto_candles(asset["symbol"], 120)
         setup = build_trade_setup(asset, candles, "crypto")
         if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
             signals.append(setup)
 
     for asset in fetch_stock_quotes_safe()[:50]:
+        if db.was_recent_signal(asset["symbol"], "stock", cooldown_hours=72):
+            continue
+
         candles = fetch_stock_candles(asset["symbol"])
         setup = build_trade_setup(asset, candles, "stock")
         if setup and setup["confidence"] >= Config.SIGNAL_MIN_CONFIDENCE and setup["risk_reward"] >= Config.SIGNAL_MIN_RR:
@@ -1552,6 +1684,7 @@ def generate_active_signals():
     db.replace_active_signals(signals)
     db.sync_signal_history(signals)
     return signals
+
 
 def evaluate_signal_history_outcomes():
     open_rows = db.get_open_signal_history(limit=500)
@@ -1572,53 +1705,68 @@ def evaluate_signal_history_outcomes():
         outcome = None
         note = ""
 
-        if signal == "BUY":
-            for c in recent:
-                if c["low"] <= stop:
-                    outcome = "STOPPED"
-                    note = "Candle low hit stop."
+        for c in recent:
+            if signal == "BUY":
+                hit_stop = c["low"] <= stop
+                hit_tp1 = c["high"] >= tp1
+                hit_tp2 = c["high"] >= tp2
+
+                if hit_stop and (hit_tp1 or hit_tp2):
+                    outcome = "AMBIGUOUS"
+                    note = "Same candle touched stop and target; intrabar order unknown."
                     break
-                if c["high"] >= tp2:
+                elif hit_tp2:
                     outcome = "TP2_HIT"
                     note = "Candle high hit TP2."
                     break
-                if c["high"] >= tp1:
+                elif hit_tp1:
                     outcome = "TP1_HIT"
                     note = "Candle high hit TP1."
                     break
-        else:
-            for c in recent:
-                if c["high"] >= stop:
+                elif hit_stop:
                     outcome = "STOPPED"
-                    note = "Candle high hit stop."
+                    note = "Candle low hit stop."
                     break
-                if c["low"] <= tp2:
+
+            else:
+                hit_stop = c["high"] >= stop
+                hit_tp1 = c["low"] <= tp1
+                hit_tp2 = c["low"] <= tp2
+
+                if hit_stop and (hit_tp1 or hit_tp2):
+                    outcome = "AMBIGUOUS"
+                    note = "Same candle touched stop and target; intrabar order unknown."
+                    break
+                elif hit_tp2:
                     outcome = "TP2_HIT"
                     note = "Candle low hit TP2."
                     break
-                if c["low"] <= tp1:
+                elif hit_tp1:
                     outcome = "TP1_HIT"
                     note = "Candle low hit TP1."
+                    break
+                elif hit_stop:
+                    outcome = "STOPPED"
+                    note = "Candle high hit stop."
                     break
 
         if outcome:
             db.update_signal_outcome(row["history_id"], outcome, note)
 
+
 def get_confidence_accuracy_breakdown():
     rows = db.get_signal_history(limit=1000)
     buckets = {
-        "50-59": {"wins": 0, "losses": 0},
-        "60-69": {"wins": 0, "losses": 0},
-        "70-79": {"wins": 0, "losses": 0},
-        "80-89": {"wins": 0, "losses": 0},
-        "90-99": {"wins": 0, "losses": 0},
+        "50-59": {"wins": 0, "losses": 0, "ambiguous": 0},
+        "60-69": {"wins": 0, "losses": 0, "ambiguous": 0},
+        "70-79": {"wins": 0, "losses": 0, "ambiguous": 0},
+        "80-89": {"wins": 0, "losses": 0, "ambiguous": 0},
+        "90-99": {"wins": 0, "losses": 0, "ambiguous": 0},
     }
 
     for r in rows:
         conf = int(r.get("confidence", 0))
         outcome = str(r.get("outcome", "OPEN"))
-        if outcome not in ("TP1_HIT", "TP2_HIT", "STOPPED"):
-            continue
 
         if conf < 60:
             bucket = "50-59"
@@ -1635,6 +1783,8 @@ def get_confidence_accuracy_breakdown():
             buckets[bucket]["wins"] += 1
         elif outcome == "STOPPED":
             buckets[bucket]["losses"] += 1
+        elif outcome == "AMBIGUOUS":
+            buckets[bucket]["ambiguous"] += 1
 
     result = []
     for bucket, vals in buckets.items():
@@ -1644,9 +1794,11 @@ def get_confidence_accuracy_breakdown():
             "bucket": bucket,
             "wins": vals["wins"],
             "losses": vals["losses"],
+            "ambiguous": vals["ambiguous"],
             "accuracy": acc
         })
     return result
+
 
 def send_email(to_email, subject, html_body, text_body=None):
     if not Config.RESEND_API_KEY:
@@ -1677,6 +1829,7 @@ def send_email(to_email, subject, html_body, text_body=None):
         logger.warning(f"Resend email failed: {e}")
         return False
 
+
 def send_password_reset_email(email, reset_link):
     subject = f"{Config.APP_NAME} Password Reset"
     html_body = f"""
@@ -1688,6 +1841,7 @@ def send_password_reset_email(email, reset_link):
     </div>
     """
     return send_email(email, subject, html_body, f"Reset your password: {reset_link}")
+
 
 def send_telegram_message(text):
     if not Config.TELEGRAM_BOT_TOKEN or not Config.TELEGRAM_CHAT_ID:
@@ -1703,6 +1857,7 @@ def send_telegram_message(text):
         logger.warning(f"Telegram send failed: {e}")
         return False
 
+
 def send_discord_message(text):
     if not Config.DISCORD_WEBHOOK_URL:
         return False
@@ -1713,6 +1868,7 @@ def send_discord_message(text):
         logger.warning(f"Discord send failed: {e}")
         return False
 
+
 def build_top_signals_broadcast(signals):
     if not signals:
         return None
@@ -1722,6 +1878,7 @@ def build_top_signals_broadcast(signals):
             f"{s['symbol']} | {s['signal']} | Entry {fmt_price(s['entry_price'])} | TP1 {fmt_price(s['take_profit_1'])} | Conf {s['confidence']}%"
         )
     return "\n".join(lines)
+
 
 def maybe_broadcast_top_signals(signals):
     text = build_top_signals_broadcast(signals)
@@ -1801,6 +1958,7 @@ def draw_candles_html(candles):
     html_parts.append("</div>")
     return "".join(html_parts)
 
+
 def tier_badge_html(user):
     if not user:
         return "<span class='pill'>Guest</span>"
@@ -1810,6 +1968,7 @@ def tier_badge_html(user):
     if tier == "pro":
         return "<span class='pill' style='background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.22);color:#bae6fd;'>Pro</span>"
     return "<span class='pill'>Free</span>"
+
 
 def top_signal_cards_html(signals, blurred=False):
     cards = ""
@@ -1854,6 +2013,7 @@ def top_signal_cards_html(signals, blurred=False):
     </div>
     """
 
+
 def render_footer():
     return """
     <div class="footer-top">
@@ -1870,6 +2030,7 @@ def render_footer():
     </div>
     <div class="footer">AVA Markets © 2026 — Premium Final Edition.</div>
     """
+
 
 def nav_layout(title, content, description="AVA Markets - AI market intelligence"):
     user_nav = (
@@ -1889,7 +2050,6 @@ def nav_layout(title, content, description="AVA Markets - AI market intelligence
   <meta name="google-site-verification" content="39xa6RndNqbrq7XCh_9JZQkWBoRKAJlghz8ieHcV2v4" />
   <style>{{ css }}</style>
 </head>
-
     <body>
       <div class="container">
         <nav class="nav">
@@ -1916,6 +2076,7 @@ def nav_layout(title, content, description="AVA Markets - AI market intelligence
     </body>
     </html>
     """, title=title, description=description, css=CSS, content=content, user_nav=user_nav, admin_link=admin_link, footer=render_footer())
+
 
 def live_update_script(page_type):
     return f"""<script>
@@ -1945,6 +2106,7 @@ def live_update_script(page_type):
     }}, 30000);
     </script>"""
 
+
 def current_price_for(symbol, asset_type):
     symbol = symbol.upper()
     if asset_type == "crypto":
@@ -1952,6 +2114,7 @@ def current_price_for(symbol, asset_type):
         return float(a["price"]) if a else None
     a = next((x for x in fetch_stock_quotes_safe() if x["symbol"] == symbol), None)
     return float(a["price"]) if a else None
+
 
 def build_portfolio_analytics(user_id):
     positions = db.get_portfolio_positions(user_id)
@@ -2013,6 +2176,7 @@ def build_portfolio_analytics(user_id):
         "worst": worst
     }
 
+
 def combined_market_assets():
     assets = []
     for a in fetch_crypto_quotes_safe():
@@ -2025,11 +2189,13 @@ def combined_market_assets():
         assets.append(item)
     return assets
 
+
 def get_trend_lists():
     assets = combined_market_assets()
     gainers = sorted(assets, key=lambda x: float(x.get("change", 0)), reverse=True)[:12]
     losers = sorted(assets, key=lambda x: float(x.get("change", 0)))[:12]
     return gainers, losers
+
 
 def get_hot_assets():
     signals = db.get_active_signals(limit=100)
@@ -2039,6 +2205,7 @@ def get_hot_assets():
         reverse=True
     )
     return hot[:12]
+
 
 def build_forecasts():
     forecasts = []
@@ -2080,8 +2247,7 @@ def build_forecasts():
     forecasts.sort(key=lambda x: int(x["confidence"]), reverse=True)
     return forecasts[:20]
 
-
-@app.route("/api/live/crypto-list")
+    @app.route("/api/live/crypto-list")
 def api_live_crypto():
     assets = fetch_crypto_quotes_safe()
     items = [{
@@ -2092,6 +2258,7 @@ def api_live_crypto():
         "signal": a.get("signal", "HOLD")
     } for a in assets]
     return jsonify({"updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "items": items})
+
 
 @app.route("/api/live/stocks-list")
 def api_live_stocks():
@@ -2104,6 +2271,7 @@ def api_live_stocks():
         "signal": a.get("signal", "HOLD")
     } for a in assets]
     return jsonify({"updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), "items": items})
+
 
 @app.route("/")
 def home():
@@ -2194,6 +2362,7 @@ def home():
     """
     return nav_layout("AVA Markets - AI Market Intelligence", content)
 
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if g.user:
@@ -2229,6 +2398,7 @@ def register():
     """
     return nav_layout("Register - AVA", content)
 
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if g.user:
@@ -2260,6 +2430,7 @@ def login():
     """
     return nav_layout("Login - AVA", content)
 
+
 @app.route("/logout")
 def logout():
     token = request.cookies.get("session_token")
@@ -2267,6 +2438,7 @@ def logout():
     resp = make_response(redirect("/"))
     resp.delete_cookie("session_token")
     return resp
+
 
 @app.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
@@ -2290,6 +2462,7 @@ def forgot_password():
     </div></div>
     """
     return nav_layout("Forgot Password", content)
+
 
 @app.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token):
@@ -2324,6 +2497,7 @@ def reset_password(token):
     </div></div>
     """
     return nav_layout("Reset Password", content)
+
 
 @app.route("/dashboard")
 @require_auth
@@ -2419,6 +2593,7 @@ def dashboard():
     """
     return nav_layout("Dashboard - AVA", content)
 
+
 @app.route("/alerts/preferences", methods=["POST"])
 @require_auth
 def alert_preferences():
@@ -2427,17 +2602,20 @@ def alert_preferences():
     db.update_alert_prefs(g.user["id"], 1, 0, 0, min_conf)
     return redirect("/dashboard")
 
+
 @app.route("/watchlist/add", methods=["POST"])
 @require_auth
 def watchlist_add():
     db.add_watchlist(g.user["id"], request.form.get("symbol", ""), request.form.get("asset_type", "crypto"))
     return redirect("/dashboard")
 
+
 @app.route("/watchlist/remove", methods=["POST"])
 @require_auth
 def watchlist_remove():
     db.remove_watchlist(g.user["id"], request.form.get("symbol", ""), request.form.get("asset_type", "crypto"))
     return redirect("/dashboard")
+
 
 @app.route("/portfolio")
 @require_auth
@@ -2520,6 +2698,7 @@ def portfolio():
     """
     return nav_layout("Portfolio - AVA", content)
 
+
 @app.route("/portfolio/add", methods=["POST"])
 @require_auth
 def portfolio_add():
@@ -2531,6 +2710,7 @@ def portfolio_add():
         db.add_portfolio_position(g.user["id"], symbol, asset_type, quantity, avg_cost)
     return redirect("/portfolio")
 
+
 @app.route("/portfolio/delete", methods=["POST"])
 @require_auth
 def portfolio_delete():
@@ -2538,6 +2718,7 @@ def portfolio_delete():
     if position_id > 0:
         db.delete_portfolio_position(position_id, g.user["id"])
     return redirect("/portfolio")
+
 
 @app.route("/billing")
 @require_auth
@@ -2549,6 +2730,7 @@ def billing():
         return redirect(session.url)
     except Exception as e:
         return str(e), 500
+
 
 @app.route("/pricing")
 def pricing():
@@ -2610,6 +2792,7 @@ def pricing():
     """
     return nav_layout("Pricing - AVA", content)
 
+
 @app.route("/checkout/<plan_key>", methods=["POST"])
 @require_auth
 def checkout(plan_key):
@@ -2618,6 +2801,7 @@ def checkout(plan_key):
         return redirect(session.url)
     except Exception as e:
         return str(e), 500
+
 
 @app.route("/signals")
 def signals():
@@ -2681,6 +2865,7 @@ def signals():
     """
     return nav_layout("Signals - AVA", content)
 
+
 @app.route("/trends")
 @require_tier("pro")
 def trends():
@@ -2743,6 +2928,7 @@ def trends():
     """
     return nav_layout("Trends - AVA", content)
 
+
 @app.route("/hot")
 @require_tier("elite")
 def hot():
@@ -2777,6 +2963,7 @@ def hot():
     </section>
     """
     return nav_layout("HOT - AVA", content)
+
 
 @app.route("/forecasts")
 @require_tier("pro")
@@ -2816,6 +3003,7 @@ def forecasts():
     """
     return nav_layout("Forecasts - AVA", content)
 
+
 @app.route("/history")
 def history():
     stats = db.get_signal_stats()
@@ -2827,6 +3015,7 @@ def history():
           <td>{h(row['bucket'])}</td>
           <td>{row['wins']}</td>
           <td>{row['losses']}</td>
+          <td>{row.get('ambiguous', 0)}</td>
           <td>{row['accuracy']}%</td>
         </tr>
         """
@@ -2887,14 +3076,15 @@ def history():
         <h3>Accuracy by Confidence Bucket</h3>
         <div class="table-shell">
           <table class="market-table">
-            <tr><th>Confidence</th><th>Wins</th><th>Losses</th><th>Accuracy</th></tr>
-            {confidence_html or "<tr><td colspan='4'>No confidence accuracy data yet.</td></tr>"}
+            <tr><th>Confidence</th><th>Wins</th><th>Losses</th><th>Ambiguous</th><th>Accuracy</th></tr>
+            {confidence_html or "<tr><td colspan='5'>No confidence accuracy data yet.</td></tr>"}
           </table>
         </div>
       </div>
     </section>
     """
     return nav_layout("History - AVA", content)
+
 
 @app.route("/crypto")
 def crypto():
@@ -2946,6 +3136,7 @@ def crypto():
     """
     return nav_layout("Crypto Signals and Prices - AVA", content)
 
+
 @app.route("/stocks")
 def stocks():
     try:
@@ -2996,6 +3187,7 @@ def stocks():
     """
     return nav_layout("Stock Signals and Prices - AVA", content)
 
+
 @app.route("/crypto/<symbol>")
 @require_tier("pro")
 def crypto_detail(symbol):
@@ -3032,6 +3224,7 @@ def crypto_detail(symbol):
     """
     return nav_layout(f"{symbol} Signal Analysis - AVA", content)
 
+
 @app.route("/stocks/<symbol>")
 @require_tier("pro")
 def stock_detail(symbol):
@@ -3067,6 +3260,7 @@ def stock_detail(symbol):
     </section>
     """
     return nav_layout(f"{symbol} Signal Analysis - AVA", content)
+
 
 @app.route("/landing/<symbol>")
 def landing_symbol(symbol):
@@ -3120,6 +3314,7 @@ def landing_symbol(symbol):
 
     abort(404)
 
+
 @app.route("/learn/<symbol>")
 def learn_symbol(symbol):
     symbol = symbol.upper()
@@ -3148,6 +3343,7 @@ def learn_symbol(symbol):
     """
     return nav_layout(page["title"], content)
 
+
 @app.route("/blog")
 def blog():
     cards = ""
@@ -3172,6 +3368,7 @@ def blog():
     """
     return nav_layout("AVA Blog and Research", content)
 
+
 @app.route("/blog/<slug>")
 def blog_post(slug):
     post = BLOG_POSTS.get(slug)
@@ -3193,6 +3390,7 @@ def blog_post(slug):
     </section>
     """
     return nav_layout(post["title"], content)
+
 
 @app.route("/admin")
 @require_admin
@@ -3235,11 +3433,21 @@ def admin():
         <div class="kpi"><div class="num">{stats['win_rate']}%</div><div class="label">Tracked Win Rate</div></div>
       </div>
 
-      <div class="card" style="margin-bottom:20px;">
-        <h3>Broadcast Controls</h3>
-        <form action="/admin/broadcast" method="POST">
-          <button class="btn btn-primary" type="submit">Broadcast Top Signals</button>
-        </form>
+      <div class="grid-2" style="margin-bottom:20px;">
+        <div class="card">
+          <h3>Broadcast Controls</h3>
+          <form action="/admin/broadcast" method="POST">
+            <button class="btn btn-primary" type="submit">Broadcast Top Signals</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>History Controls</h3>
+          <p class="small">Marks prior trade outcomes as legacy-invalid after engine correction.</p>
+          <form action="/admin/invalidate-history" method="POST">
+            <button class="btn btn-secondary" type="submit">Invalidate Legacy History</button>
+          </form>
+        </div>
       </div>
 
       <div class="card" style="margin-bottom:20px;">
@@ -3265,19 +3473,30 @@ def admin():
     """
     return nav_layout("Admin - AVA", content)
 
+
 @app.route("/admin/broadcast", methods=["POST"])
 @require_admin
 def admin_broadcast():
     maybe_broadcast_top_signals(db.get_active_signals(limit=3))
     return redirect("/admin")
 
+
+@app.route("/admin/invalidate-history", methods=["POST"])
+@require_admin
+def admin_invalidate_history():
+    db.invalidate_legacy_history()
+    return redirect("/admin")
+
+
 @app.route("/terms")
 def terms():
     return nav_layout("Terms", "<section class='section'><div class='card'><h1>Terms</h1><p>This platform is for market intelligence and educational use only.</p></div></section>")
 
+
 @app.route("/privacy")
 def privacy():
     return nav_layout("Privacy", "<section class='section'><div class='card'><h1>Privacy</h1><p>We store only operational data needed to run AVA Markets.</p></div></section>")
+
 
 @app.route("/webhook/stripe", methods=["POST"])
 def stripe_webhook():
@@ -3296,7 +3515,13 @@ def stripe_webhook():
         uid = obj.get("client_reference_id")
         md = obj.get("metadata", {}) or {}
         if uid:
-            db.upgrade_user(int(uid), md.get("tier", "pro"), obj.get("customer"), obj.get("subscription"), md.get("billing", "monthly"))
+            db.upgrade_user(
+                int(uid),
+                md.get("tier", "pro"),
+                obj.get("customer"),
+                obj.get("subscription"),
+                md.get("billing", "monthly")
+            )
 
     if event.get("type") == "customer.subscription.deleted":
         obj = event.get("data", {}).get("object", {})
@@ -3308,6 +3533,7 @@ def stripe_webhook():
 
     return "OK", 200
 
+
 @app.route("/debug/promote/<tier>")
 @require_auth
 def debug_promote(tier):
@@ -3318,6 +3544,7 @@ def debug_promote(tier):
 
 
 _bg_started = False
+
 
 def start_background_loop():
     global _bg_started
